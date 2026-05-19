@@ -32,7 +32,7 @@ const B = {
 
 const USUARIOS_DEMO = [
   { username: 'admin', password: 'admin123', rol: 'ADMIN',       nombre: 'Admin Alo Trans', esDemo: true },
-  { username: 'coord', password: 'coord123', rol: 'COORDINADOR', nombre: 'Coordinador UMA', esDemo: true }
+  { username: 'coord', password: 'coord123', rol: 'COORDINADOR', nombre: 'Coordinador', esDemo: true }
 ];
 
 const PERMISOS = {
@@ -1098,7 +1098,7 @@ export default function App() {
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <Logo size="xs" />
-            <p className="text-xs text-white/30">© 2026 · Panel Maestro de Operaciones · Grupo UMA</p>
+            <p className="text-xs text-white/30">© 2026 · Panel Maestro de Operaciones · Alotrans Carga</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-white/30">
             <Database className="w-3.5 h-3.5" />
@@ -1152,7 +1152,7 @@ function DashboardView({ servicios, loading, session }) {
           <div>
             <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: B.orange }}>Panel Maestro de Operaciones</p>
             <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">Hola, {session.nombre.split(' ')[0]} 👋</h1>
-            <p className="text-sm text-white/60 mt-2">Resumen operativo del Grupo UMA en tiempo real</p>
+            <p className="text-sm text-white/60 mt-2">Resumen operativo de Alotrans Carga en tiempo real</p>
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
             style={{
