@@ -1,20 +1,25 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
-  Truck, Plus, Search, Edit3, Trash2, Save, X, MapPin,
+  Plus, Search, Edit3, Trash2, Save, X, MapPin,
   Package, CheckCircle2, Clock, AlertCircle,
   Download, ChevronDown, Zap, ArrowLeft, Database,
   ClipboardList, Shield, RefreshCw, CircleDollarSign,
-  List, FileSpreadsheet,
-  MousePointerClick, LogIn, LogOut, User,
-  UserCog, Lock, LayoutDashboard, FileCheck2,
-  EyeOff, Eye, Info, UserPlus, Users, Mail,
-  TrendingUp, BarChart3
+  List, FileSpreadsheet, MousePointerClick, LogIn, LogOut, User,
+  UserCog, Lock, LayoutDashboard, FileCheck2, EyeOff, Eye, Info,
+  UserPlus, Users, Mail, TrendingUp,
+  Columns, ToggleLeft, ToggleRight, ChevronUp,
+  Pencil, Check, Hash, Type, Calendar,
+  Layers, SlidersHorizontal
 } from 'lucide-react';
+
+import { loadColumns, saveColumns, getVisibleColumns, emptyRow, DEFAULT_COLUMNS, COLUMN_TYPES } from './lib/columns.js';
+import db from './lib/db.js';
+import { USE_SUPABASE } from './lib/supabase.js';
 
 // ============================================================
 //  COLORES DE MARCA
 // ============================================================
-const BRAND = {
+const B = {
   navy:    '#16294a',
   blue:    '#2b7fc7',
   orange:  '#ff6a00',
@@ -25,94 +30,22 @@ const BRAND = {
   borderH: 'rgba(255,255,255,0.12)'
 };
 
-// ============================================================
-//  COMPONENTE LOGO
-// ============================================================
-const AloTransLogo = ({ size = 'md', showCarga = true, theme = 'dark' }) => {
-  const sizes = {
-    xs: { w: 100, h: 32 },
-    sm: { w: 140, h: 44 },
-    md: { w: 180, h: 56 },
-    lg: { w: 220, h: 70 },
-    xl: { w: 280, h: 90 }
-  };
-  const s = sizes[size];
-  const navyColor = theme === 'dark' ? '#5b8bd1' : BRAND.navy;
-  const blueColor = theme === 'dark' ? '#3b9cf5' : BRAND.blue;
-
-  return (
-    <svg viewBox="0 0 380 110" width={s.w} height={s.h} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
-      <text x="0" y="72" fontFamily="'Arial Black', 'Helvetica Neue', sans-serif" fontSize="78" fontWeight="900" fill={navyColor}>Al</text>
-      <circle cx="105" cy="46" r="26" fill={navyColor} />
-      <circle cx="105" cy="46" r="13" fill={BRAND.bg} />
-      <path d="M105 28 L96 50 L103 50 L99 64 L114 42 L107 42 L111 28 Z"
-        fill="#ffffff" stroke={navyColor} strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M5 88 Q50 108 130 78"
-        stroke={BRAND.orange} strokeWidth="11" fill="none" strokeLinecap="round" />
-      <text x="142" y="72" fontFamily="'Arial', 'Helvetica Neue', sans-serif" fontSize="72" fontWeight="400" fill={blueColor}>Trans</text>
-      {showCarga && (
-        <text x="115" y="105" fontFamily="'Arial', sans-serif" fontSize="20" fontWeight="700"
-          fontStyle="italic" fill={BRAND.orange} letterSpacing="9">c a r g a</text>
-      )}
-    </svg>
-  );
-};
-
-// ============================================================
-//  CATÁLOGOS
-// ============================================================
-const ESTADOS = ['EN CURSO', 'FACTURADO', 'TERMINADO', 'CUMPLIDO', 'CANCELADO'];
-const ESTADOS_FACTURABLES = ['FACTURADO', 'TERMINADO', 'CUMPLIDO'];
-const CATEGORIAS = ['2W', '3W', '4W'];
-const PROVEEDORES = ['ALOTRANS_CARGA', 'TERCERO'];
-const CLIENTES = ['GRUPO UMA', 'AUTECO SAS', 'DONG FENG', 'OTROS'];
-
 const USUARIOS_DEMO = [
   { username: 'admin', password: 'admin123', rol: 'ADMIN',       nombre: 'Admin Alo Trans', esDemo: true },
   { username: 'coord', password: 'coord123', rol: 'COORDINADOR', nombre: 'Coordinador UMA', esDemo: true }
 ];
 
 const PERMISOS = {
-  ADMIN:       { ver: true, crear: true, editar: true, eliminar: true,  importar: true, exportar: true, gestionarUsuarios: true },
-  COORDINADOR: { ver: true, crear: true, editar: true, eliminar: false, importar: true, exportar: true, gestionarUsuarios: false }
+  ADMIN:       { ver: true, crear: true, editar: true, eliminar: true,  importar: true, exportar: true, gestionarUsuarios: true, gestionarColumnas: true },
+  COORDINADOR: { ver: true, crear: true, editar: true, eliminar: false, importar: true, exportar: true, gestionarUsuarios: false, gestionarColumnas: false }
 };
 
-const COLUMNAS = [
-  { key: 'viajeInterno',   label: 'VIAJE',     w: 120, type: 'text' },
-  { key: 'coordina',       label: 'COORDINA',  w: 110, type: 'text' },
-  { key: 'cliente',        label: 'CLIENTE',   w: 130, type: 'select', options: CLIENTES },
-  { key: 'estado',         label: 'ESTADO',    w: 130, type: 'select', options: ESTADOS },
-  { key: 'fechaInicio',    label: 'FECHA',     w: 150, type: 'date' },
-  { key: 'ciudadOrigen',   label: 'ORIGEN',    w: 130, type: 'text' },
-  { key: 'ciudadDestino',  label: 'DESTINO',   w: 130, type: 'text' },
-  { key: 'placaRecurso',   label: 'PLACA',     w: 100, type: 'text' },
-  { key: 'nombreTecnico',  label: 'TÉCNICO',   w: 160, type: 'text' },
-  { key: 'valorTotal',     label: 'VALOR',     w: 140, type: 'number' },
-  { key: 'categoria',      label: 'CATEG.',    w: 90,  type: 'select', options: CATEGORIAS },
-  { key: 'proveedor',      label: 'PROVEEDOR', w: 140, type: 'select', options: PROVEEDORES }
-];
-
-const filaVacia = () => ({
-  id: `srv-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-  viajeInterno: '', coordina: '', cliente: 'GRUPO UMA', estado: 'EN CURSO',
-  fechaInicio: '', ciudadOrigen: '', ciudadDestino: '',
-  placaRecurso: '', nombreTecnico: '', valorTotal: '',
-  categoria: '4W', proveedor: 'ALOTRANS_CARGA',
-  creadoEn: new Date().toISOString()
-});
+const ESTADOS_FACTURABLES = ['FACTURADO', 'TERMINADO', 'CUMPLIDO'];
 
 // ============================================================
 //  UTILIDADES
 // ============================================================
-const fmtCOP = (n) => {
-  const num = Number(n) || 0;
-  return '$' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num);
-};
-const fmtDate = (iso) => {
-  if (!iso) return '—';
-  try { return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }); }
-  catch { return iso; }
-};
+const fmtCOP = (n) => '$' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(Number(n) || 0);
 const fmtCOPCompact = (n) => {
   const num = Number(n) || 0;
   if (num >= 1_000_000_000) return `$${(num / 1_000_000_000).toFixed(1)}B`;
@@ -120,35 +53,37 @@ const fmtCOPCompact = (n) => {
   if (num >= 1_000)         return `$${(num / 1_000).toFixed(0)}K`;
   return fmtCOP(num);
 };
-
-// ============================================================
-//  STORAGE HELPERS (localStorage)
-// ============================================================
-const storage = {
-  get: (key) => {
-    try {
-      const value = localStorage.getItem(key);
-      return value ? JSON.parse(value) : null;
-    } catch { return null; }
-  },
-  set: (key, value) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-      return true;
-    } catch { return false; }
-  },
-  remove: (key) => {
-    try { localStorage.removeItem(key); return true; }
-    catch { return false; }
-  }
+const fmtDate = (iso) => {
+  if (!iso) return '—';
+  try { return new Date(iso).toLocaleDateString('es-CO', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch { return iso; }
 };
 
-const getUsuarios = () => {
-  const data = storage.get('alotrans:usuarios');
-  return Array.isArray(data) ? data : [];
+// ── localStorage helpers (para compatibilidad sin Supabase)
+const ls = {
+  get:    (k) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch { return null; } },
+  set:    (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch { return false; } },
+  remove: (k) => { try { localStorage.removeItem(k); return true; } catch { return false; } }
 };
-const saveUsuarios = (lista) => storage.set('alotrans:usuarios', lista);
-const getTodosLosUsuarios = () => [...USUARIOS_DEMO, ...getUsuarios()];
+
+// ============================================================
+//  LOGO
+// ============================================================
+const Logo = ({ size = 'md' }) => {
+  const sizes = { xs: [100,32], sm: [140,44], md: [180,56], lg: [220,70], xl: [280,90] };
+  const [w, h] = sizes[size];
+  return (
+    <svg viewBox="0 0 380 110" width={w} height={h} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
+      <text x="0" y="72" fontFamily="'Arial Black','Helvetica Neue',sans-serif" fontSize="78" fontWeight="900" fill="#5b8bd1">Al</text>
+      <circle cx="105" cy="46" r="26" fill="#5b8bd1" />
+      <circle cx="105" cy="46" r="13" fill={B.bg} />
+      <path d="M105 28 L96 50 L103 50 L99 64 L114 42 L107 42 L111 28 Z" fill="#fff" stroke="#5b8bd1" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M5 88 Q50 108 130 78" stroke={B.orange} strokeWidth="11" fill="none" strokeLinecap="round" />
+      <text x="142" y="72" fontFamily="'Arial','Helvetica Neue',sans-serif" fontSize="72" fontWeight="400" fill="#3b9cf5">Trans</text>
+      <text x="115" y="105" fontFamily="'Arial',sans-serif" fontSize="20" fontWeight="700" fontStyle="italic" fill={B.orange} letterSpacing="9">c a r g a</text>
+    </svg>
+  );
+};
 
 // ============================================================
 //  TOAST
@@ -160,17 +95,16 @@ const Toast = ({ toast, onClose }) => {
     return () => clearTimeout(t);
   }, [toast, onClose]);
   if (!toast) return null;
-  const config = {
+  const cfg = {
     success: { icon: CheckCircle2, color: '#10b981', bg: 'rgba(16,185,129,0.1)',  border: 'rgba(16,185,129,0.4)' },
     error:   { icon: AlertCircle,  color: '#ef4444', bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.4)' },
-    info:    { icon: Zap,          color: BRAND.orange, bg: 'rgba(255,106,0,0.1)', border: 'rgba(255,106,0,0.4)' }
-  };
-  const cfg = config[toast.type] || config.info;
+    info:    { icon: Zap,          color: B.orange,  bg: 'rgba(255,106,0,0.1)',   border: 'rgba(255,106,0,0.4)' }
+  }[toast.type] || { icon: Zap, color: B.orange, bg: 'rgba(255,106,0,0.1)', border: 'rgba(255,106,0,0.4)' };
   const Icon = cfg.icon;
   return (
     <div className="fixed top-6 right-6 z-[100] animate-slide-in">
       <div className="flex items-center gap-3 px-5 py-4 rounded-2xl backdrop-blur-xl shadow-2xl border max-w-md"
-        style={{ backgroundColor: cfg.bg, borderColor: cfg.border, boxShadow: `0 8px 32px ${cfg.color}33` }}>
+        style={{ backgroundColor: cfg.bg, borderColor: cfg.border }}>
         <Icon className="w-5 h-5 flex-shrink-0" style={{ color: cfg.color }} />
         <span className="text-sm font-medium text-white">{toast.message}</span>
       </div>
@@ -182,34 +116,32 @@ const Toast = ({ toast, onClose }) => {
 //  STATUS PILL
 // ============================================================
 const StatusPill = ({ status, size = 'md' }) => {
-  const palette = {
+  const p = {
     'EN CURSO':  { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
     'FACTURADO': { color: '#3b9cf5', bg: 'rgba(59,156,245,0.12)' },
     'TERMINADO': { color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
     'CUMPLIDO':  { color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
     'CANCELADO': { color: '#ef4444', bg: 'rgba(239,68,68,0.12)' }
-  };
-  const p = palette[status] || palette['EN CURSO'];
-  const padding = size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-3 py-1 text-[11px]';
+  }[status] || { color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' };
+  const pad = size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-3 py-1 text-[11px]';
   return (
-    <span className={`inline-flex items-center gap-1.5 ${padding} rounded-full font-bold tracking-wide border whitespace-nowrap`}
+    <span className={`inline-flex items-center gap-1.5 ${pad} rounded-full font-bold tracking-wide border whitespace-nowrap`}
       style={{ color: p.color, backgroundColor: p.bg, borderColor: p.color + '40' }}>
-      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color, boxShadow: `0 0 8px ${p.color}` }} />
+      <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: p.color }} />
       {status}
     </span>
   );
 };
 
 // ============================================================
-//  MODAL CONFIRMACIÓN
+//  CONFIRM MODAL
 // ============================================================
 function ConfirmModal({ title, message, color, icon: Icon, onCancel, onConfirm, confirmLabel }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md"
       style={{ backgroundColor: 'rgba(0,0,0,0.65)' }} onClick={onCancel}>
       <div className="max-w-md w-full rounded-3xl border p-6 animate-fade-up"
-        style={{ backgroundColor: BRAND.card, borderColor: color + '4D' }}
-        onClick={(e) => e.stopPropagation()}>
+        style={{ backgroundColor: B.card, borderColor: color + '4D' }} onClick={e => e.stopPropagation()}>
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 rounded-2xl flex items-center justify-center flex-shrink-0"
             style={{ backgroundColor: color + '1A' }}>
@@ -222,10 +154,10 @@ function ConfirmModal({ title, message, color, icon: Icon, onCancel, onConfirm, 
         </div>
         <div className="flex gap-3 mt-6">
           <button onClick={onCancel}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-medium border text-white/80 hover:bg-white/5 transition-colors"
-            style={{ borderColor: BRAND.borderH }}>Cancelar</button>
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-medium border text-white/80 hover:bg-white/5"
+            style={{ borderColor: B.borderH }}>Cancelar</button>
           <button onClick={onConfirm}
-            className="flex-1 px-4 py-3 rounded-xl text-sm font-bold transition-transform hover:scale-[1.02]"
+            className="flex-1 px-4 py-3 rounded-xl text-sm font-bold"
             style={{ backgroundColor: color, color: 'white' }}>
             {confirmLabel}
           </button>
@@ -236,54 +168,40 @@ function ConfirmModal({ title, message, color, icon: Icon, onCancel, onConfirm, 
 }
 
 // ============================================================
-//  LOGIN / REGISTER
+//  LOGIN VIEW
 // ============================================================
 function LoginView({ onLogin, showToast }) {
   const [mode, setMode] = useState('login');
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [passwordConfirm, setPasswordConfirm] = useState('');
-  const [nombre, setNombre] = useState('');
-  const [rol, setRol] = useState('COORDINADOR');
+  const [form, setForm] = useState({ username: '', password: '', passwordConfirm: '', nombre: '', rol: 'COORDINADOR' });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errores, setErrores] = useState({});
+  const [errs, setErrs] = useState({});
 
-  const resetForm = () => {
-    setUsername(''); setPassword(''); setPasswordConfirm('');
-    setNombre(''); setRol('COORDINADOR'); setErrores({});
-  };
-  const cambiarModo = (nuevoModo) => { setMode(nuevoModo); resetForm(); };
+  const set = (k, v) => { setForm(prev => ({ ...prev, [k]: v })); setErrs({}); };
 
   const handleLogin = async (e) => {
     e?.preventDefault();
     const errs = {};
-    if (!username.trim()) errs.username = 'Requerido';
-    if (!password) errs.password = 'Requerido';
-    setErrores(errs);
-    if (Object.keys(errs).length > 0) return;
+    if (!form.username.trim()) errs.username = 'Requerido';
+    if (!form.password) errs.password = 'Requerido';
+    setErrs(errs);
+    if (Object.keys(errs).length) return;
 
     setLoading(true);
     await new Promise(r => setTimeout(r, 400));
-    const todos = getTodosLosUsuarios();
-    const user = todos.find(u =>
-      u.username.toLowerCase() === username.trim().toLowerCase() && u.password === password
-    );
+    const demos = USUARIOS_DEMO.find(u => u.username === form.username.trim().toLowerCase() && u.password === form.password);
+    const registrados = ls.get('alotrans:usuarios') || [];
+    const reg = registrados.find(u => u.username === form.username.trim().toLowerCase() && u.password === form.password);
+    const user = demos || reg;
 
     if (!user) {
       setLoading(false);
       showToast('Usuario o contraseña incorrectos', 'error');
-      setErrores({ general: 'Credenciales inválidas' });
+      setErrs({ general: 'Credenciales inválidas' });
       return;
     }
-
-    const session = {
-      username: user.username,
-      nombre: user.nombre,
-      rol: user.rol,
-      loginAt: new Date().toISOString(),
-      token: `token-${Date.now()}-${Math.random().toString(36).slice(2)}`
-    };
+    const session = { username: user.username, nombre: user.nombre, rol: user.rol, loginAt: new Date().toISOString() };
+    ls.set('alotrans:session', session);
     onLogin(session);
     setLoading(false);
   };
@@ -291,242 +209,160 @@ function LoginView({ onLogin, showToast }) {
   const handleRegister = async (e) => {
     e?.preventDefault();
     const errs = {};
-    if (!nombre.trim()) errs.nombre = 'Requerido';
-    else if (nombre.trim().length < 3) errs.nombre = 'Mínimo 3 caracteres';
-    if (!username.trim()) errs.username = 'Requerido';
-    else if (username.trim().length < 3) errs.username = 'Mínimo 3 caracteres';
-    else if (!/^[a-zA-Z0-9_.]+$/.test(username.trim())) errs.username = 'Solo letras, números, _ y .';
-    if (!password) errs.password = 'Requerido';
-    else if (password.length < 6) errs.password = 'Mínimo 6 caracteres';
-    if (!passwordConfirm) errs.passwordConfirm = 'Confirma la contraseña';
-    else if (password !== passwordConfirm) errs.passwordConfirm = 'No coinciden';
-    setErrores(errs);
-    if (Object.keys(errs).length > 0) return;
+    if (!form.nombre.trim() || form.nombre.length < 3) errs.nombre = 'Mínimo 3 caracteres';
+    if (!form.username.trim() || form.username.length < 3) errs.username = 'Mínimo 3 caracteres';
+    else if (!/^[a-zA-Z0-9_.]+$/.test(form.username)) errs.username = 'Solo letras, números, _ y .';
+    if (!form.password || form.password.length < 6) errs.password = 'Mínimo 6 caracteres';
+    if (form.password !== form.passwordConfirm) errs.passwordConfirm = 'No coinciden';
+    setErrs(errs);
+    if (Object.keys(errs).length) return;
 
     setLoading(true);
     await new Promise(r => setTimeout(r, 400));
-
-    const todos = getTodosLosUsuarios();
-    const existe = todos.find(u => u.username.toLowerCase() === username.trim().toLowerCase());
-    if (existe) {
+    const all = [...USUARIOS_DEMO, ...(ls.get('alotrans:usuarios') || [])];
+    if (all.find(u => u.username === form.username.toLowerCase())) {
       setLoading(false);
       showToast('El usuario ya existe', 'error');
-      setErrores({ username: 'Nombre de usuario en uso' });
+      setErrs({ username: 'Nombre en uso' });
       return;
     }
-
-    const registrados = getUsuarios();
-    const nuevoUsuario = {
-      username: username.trim().toLowerCase(),
-      password: password,
-      nombre: nombre.trim(),
-      rol: rol,
-      esDemo: false,
-      creadoEn: new Date().toISOString()
-    };
-
-    const ok = saveUsuarios([...registrados, nuevoUsuario]);
-    if (!ok) {
-      setLoading(false);
-      showToast('Error al crear el usuario', 'error');
-      return;
-    }
-
-    showToast(`¡Cuenta creada! Ya puedes iniciar sesión`, 'success');
+    const registrados = ls.get('alotrans:usuarios') || [];
+    registrados.push({ username: form.username.toLowerCase(), password: form.password, nombre: form.nombre, rol: form.rol, esDemo: false, creadoEn: new Date().toISOString() });
+    ls.set('alotrans:usuarios', registrados);
+    showToast('¡Cuenta creada! Ya puedes iniciar sesión', 'success');
     setMode('login');
-    setPassword(''); setPasswordConfirm(''); setNombre('');
+    setForm(prev => ({ ...prev, password: '', passwordConfirm: '', nombre: '' }));
     setLoading(false);
   };
 
   const llenarDemo = (tipo) => {
     const u = USUARIOS_DEMO.find(x => x.rol === tipo);
-    if (u) { setUsername(u.username); setPassword(u.password); setErrores({}); }
+    if (u) setForm(prev => ({ ...prev, username: u.username, password: u.password }));
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ backgroundColor: BRAND.bg }}>
-      <div className="absolute inset-0 opacity-60" style={{
+    <div className="min-h-screen flex items-center justify-center p-4 relative" style={{ backgroundColor: B.bg }}>
+      <div className="absolute inset-0 opacity-50" style={{
         backgroundImage: `radial-gradient(circle at 25% 25%, rgba(255,106,0,0.08), transparent 50%), radial-gradient(circle at 75% 75%, rgba(43,127,199,0.08), transparent 50%)`
       }} />
-      <div className="absolute inset-0 opacity-20" style={{
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px)',
-        backgroundSize: '60px 60px'
-      }} />
-
       <div className="relative w-full max-w-md animate-fade-up">
-        <div className="flex justify-center mb-6">
-          <AloTransLogo size="xl" />
-        </div>
-        <p className="text-center text-xs text-white/40 uppercase tracking-[0.3em] mb-8">
-          Panel Maestro de Operaciones
-        </p>
+        <div className="flex justify-center mb-6"><Logo size="xl" /></div>
+        <p className="text-center text-xs text-white/40 uppercase tracking-[0.3em] mb-8">Panel Maestro de Operaciones</p>
 
         <div className="rounded-3xl border p-7 backdrop-blur-xl"
-          style={{
-            backgroundColor: 'rgba(17,23,41,0.85)',
-            borderColor: BRAND.borderH,
-            boxShadow: `0 20px 60px rgba(0,0,0,0.5), 0 0 80px rgba(255,106,0,0.08)`
-          }}>
+          style={{ backgroundColor: 'rgba(17,23,41,0.85)', borderColor: B.borderH }}>
 
-          <div className="flex gap-2 p-1 rounded-2xl border mb-6"
-            style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderColor: BRAND.border }}>
-            <button type="button" onClick={() => cambiarModo('login')}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all"
-              style={{
-                backgroundColor: mode === 'login' ? BRAND.orange : 'transparent',
-                color: mode === 'login' ? 'white' : 'rgba(255,255,255,0.6)',
-                fontWeight: mode === 'login' ? 700 : 500,
-                boxShadow: mode === 'login' ? `0 4px 20px ${BRAND.orange}66` : 'none'
-              }}>
-              <LogIn className="w-4 h-4" /> Iniciar Sesión
-            </button>
-            <button type="button" onClick={() => cambiarModo('register')}
-              className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all"
-              style={{
-                backgroundColor: mode === 'register' ? BRAND.orange : 'transparent',
-                color: mode === 'register' ? 'white' : 'rgba(255,255,255,0.6)',
-                fontWeight: mode === 'register' ? 700 : 500,
-                boxShadow: mode === 'register' ? `0 4px 20px ${BRAND.orange}66` : 'none'
-              }}>
-              <UserPlus className="w-4 h-4" /> Registrarse
-            </button>
+          <div className="flex gap-1 p-1 rounded-2xl border mb-5" style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderColor: B.border }}>
+            {[['login', LogIn, 'Iniciar Sesión'], ['register', UserPlus, 'Registrarse']].map(([m, Icon, lbl]) => (
+              <button key={m} type="button" onClick={() => setMode(m)}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl text-sm transition-all"
+                style={{
+                  backgroundColor: mode === m ? B.orange : 'transparent',
+                  color: mode === m ? 'white' : 'rgba(255,255,255,0.6)',
+                  fontWeight: mode === m ? 700 : 500
+                }}>
+                <Icon className="w-4 h-4" /> {lbl}
+              </button>
+            ))}
           </div>
 
-          {mode === 'login' && (
+          {mode === 'login' ? (
             <form onSubmit={handleLogin} className="space-y-4">
-              <FormField label="Usuario" icon={User} error={errores.username}>
-                <input type="text" value={username}
-                  onChange={(e) => { setUsername(e.target.value); setErrores({}); }}
+              <FField label="Usuario" icon={User} error={errs.username}>
+                <input type="text" value={form.username} onChange={e => set('username', e.target.value)}
                   placeholder="Tu usuario"
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none transition-colors"
-                  style={{ borderColor: errores.username ? '#ef4444' : BRAND.borderH }} />
-              </FormField>
-
-              <FormField label="Contraseña" icon={Lock} error={errores.password}>
-                <input type={showPass ? 'text' : 'password'} value={password}
-                  onChange={(e) => { setPassword(e.target.value); setErrores({}); }}
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                  style={{ borderColor: errs.username ? '#ef4444' : B.borderH }} />
+              </FField>
+              <FField label="Contraseña" icon={Lock} error={errs.password}>
+                <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => set('password', e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none transition-colors"
-                  style={{ borderColor: errores.password ? '#ef4444' : BRAND.borderH }} />
+                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none"
+                  style={{ borderColor: errs.password ? '#ef4444' : B.borderH }} />
                 <button type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center">
                   {showPass ? <EyeOff className="w-4 h-4 text-white/50" /> : <Eye className="w-4 h-4 text-white/50" />}
                 </button>
-              </FormField>
-
-              {errores.general && (
+              </FField>
+              {errs.general && (
                 <div className="p-3 rounded-xl border text-sm flex items-center gap-2"
                   style={{ backgroundColor: 'rgba(239,68,68,0.08)', borderColor: 'rgba(239,68,68,0.3)', color: '#fca5a5' }}>
-                  <AlertCircle className="w-4 h-4" /> {errores.general}
+                  <AlertCircle className="w-4 h-4" /> {errs.general}
                 </div>
               )}
-
-              <button type="submit" disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.01] disabled:opacity-60 disabled:scale-100"
-                style={{
-                  background: `linear-gradient(135deg, ${BRAND.orange}, #ff8a3d)`,
-                  color: 'white',
-                  boxShadow: `0 8px 24px ${BRAND.orange}40`
-                }}>
-                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
-                {loading ? 'Verificando...' : 'Iniciar Sesión'}
-              </button>
+              <BtnPrimary type="submit" loading={loading} icon={LogIn}>Iniciar Sesión</BtnPrimary>
             </form>
-          )}
-
-          {mode === 'register' && (
+          ) : (
             <form onSubmit={handleRegister} className="space-y-4">
-              <FormField label="Nombre completo" icon={User} error={errores.nombre}>
-                <input type="text" value={nombre}
-                  onChange={(e) => { setNombre(e.target.value); setErrores({}); }}
+              <FField label="Nombre completo" icon={User} error={errs.nombre}>
+                <input type="text" value={form.nombre} onChange={e => set('nombre', e.target.value)}
                   placeholder="Ej. Juan Pérez"
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none transition-colors"
-                  style={{ borderColor: errores.nombre ? '#ef4444' : BRAND.borderH }} />
-              </FormField>
-
-              <FormField label="Usuario" icon={Mail} error={errores.username}>
-                <input type="text" value={username}
-                  onChange={(e) => { setUsername(e.target.value.toLowerCase()); setErrores({}); }}
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                  style={{ borderColor: errs.nombre ? '#ef4444' : B.borderH }} />
+              </FField>
+              <FField label="Usuario" icon={Mail} error={errs.username}>
+                <input type="text" value={form.username} onChange={e => set('username', e.target.value.toLowerCase())}
                   placeholder="nombre.usuario"
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none transition-colors"
-                  style={{ borderColor: errores.username ? '#ef4444' : BRAND.borderH }} />
-              </FormField>
-
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                  style={{ borderColor: errs.username ? '#ef4444' : B.borderH }} />
+              </FField>
               <div>
                 <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">Rol</label>
                 <div className="grid grid-cols-2 gap-2">
-                  <RoleButton selected={rol === 'ADMIN'} onClick={() => setRol('ADMIN')}
-                    icon={Shield} label="Administrador" desc="Acceso completo" color={BRAND.orange} />
-                  <RoleButton selected={rol === 'COORDINADOR'} onClick={() => setRol('COORDINADOR')}
-                    icon={UserCog} label="Coordinador" desc="Sin eliminar" color={BRAND.blue} />
+                  {[['ADMIN', Shield, B.orange, 'Acceso completo'], ['COORDINADOR', UserCog, B.blue, 'Sin eliminar']].map(([r, Icon, color, desc]) => (
+                    <button key={r} type="button" onClick={() => set('rol', r)}
+                      className="flex flex-col items-center gap-1 p-3 rounded-xl border transition-all"
+                      style={{ borderColor: form.rol === r ? color : B.borderH, backgroundColor: form.rol === r ? color + '10' : 'transparent' }}>
+                      <Icon className="w-4 h-4" style={{ color }} />
+                      <span className="text-white/90 font-semibold text-sm">{r === 'ADMIN' ? 'Administrador' : 'Coordinador'}</span>
+                      <span className="text-[10px] text-white/40">{desc}</span>
+                    </button>
+                  ))}
                 </div>
               </div>
-
-              <FormField label="Contraseña" icon={Lock} error={errores.password}>
-                <input type={showPass ? 'text' : 'password'} value={password}
-                  onChange={(e) => { setPassword(e.target.value); setErrores({}); }}
+              <FField label="Contraseña" icon={Lock} error={errs.password}>
+                <input type={showPass ? 'text' : 'password'} value={form.password} onChange={e => set('password', e.target.value)}
                   placeholder="Mínimo 6 caracteres"
-                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none transition-colors"
-                  style={{ borderColor: errores.password ? '#ef4444' : BRAND.borderH }} />
+                  className="w-full pl-11 pr-12 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none"
+                  style={{ borderColor: errs.password ? '#ef4444' : B.borderH }} />
                 <button type="button" onClick={() => setShowPass(!showPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/5">
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg flex items-center justify-center">
                   {showPass ? <EyeOff className="w-4 h-4 text-white/50" /> : <Eye className="w-4 h-4 text-white/50" />}
                 </button>
-              </FormField>
-
-              <FormField label="Confirmar contraseña" icon={Lock} error={errores.passwordConfirm}>
-                <input type={showPass ? 'text' : 'password'} value={passwordConfirm}
-                  onChange={(e) => { setPasswordConfirm(e.target.value); setErrores({}); }}
+              </FField>
+              <FField label="Confirmar contraseña" icon={Lock} error={errs.passwordConfirm}>
+                <input type={showPass ? 'text' : 'password'} value={form.passwordConfirm} onChange={e => set('passwordConfirm', e.target.value)}
                   placeholder="Repite tu contraseña"
-                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none transition-colors"
-                  style={{ borderColor: errores.passwordConfirm ? '#ef4444' : BRAND.borderH }} />
-              </FormField>
-
-              <button type="submit" disabled={loading}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.01] disabled:opacity-60"
-                style={{
-                  background: `linear-gradient(135deg, ${BRAND.orange}, #ff8a3d)`,
-                  color: 'white',
-                  boxShadow: `0 8px 24px ${BRAND.orange}40`
-                }}>
-                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                {loading ? 'Creando cuenta...' : 'Crear Cuenta'}
-              </button>
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none"
+                  style={{ borderColor: errs.passwordConfirm ? '#ef4444' : B.borderH }} />
+              </FField>
+              <BtnPrimary type="submit" loading={loading} icon={UserPlus}>Crear Cuenta</BtnPrimary>
             </form>
           )}
 
           {mode === 'login' && (
-            <div className="mt-6 pt-6 border-t" style={{ borderColor: BRAND.border }}>
+            <div className="mt-5 pt-5 border-t" style={{ borderColor: B.border }}>
               <p className="text-[10px] font-bold uppercase tracking-widest text-white/40 mb-3 text-center">Accesos demo</p>
               <div className="grid grid-cols-2 gap-2">
-                <button type="button" onClick={() => llenarDemo('ADMIN')}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl border text-xs hover:bg-white/5 transition-colors"
-                  style={{ borderColor: BRAND.borderH }}>
-                  <Shield className="w-4 h-4" style={{ color: BRAND.orange }} />
-                  <span className="text-white/80 font-semibold">Admin</span>
-                  <span className="text-[10px] text-white/40 font-mono">admin / admin123</span>
-                </button>
-                <button type="button" onClick={() => llenarDemo('COORDINADOR')}
-                  className="flex flex-col items-center gap-1 p-3 rounded-xl border text-xs hover:bg-white/5 transition-colors"
-                  style={{ borderColor: BRAND.borderH }}>
-                  <UserCog className="w-4 h-4" style={{ color: BRAND.blue }} />
-                  <span className="text-white/80 font-semibold">Coordinador</span>
-                  <span className="text-[10px] text-white/40 font-mono">coord / coord123</span>
-                </button>
+                {[['ADMIN', Shield, B.orange, 'admin / admin123'], ['COORDINADOR', UserCog, B.blue, 'coord / coord123']].map(([tipo, Icon, color, hint]) => (
+                  <button key={tipo} type="button" onClick={() => llenarDemo(tipo)}
+                    className="flex flex-col items-center gap-1 p-3 rounded-xl border text-xs hover:bg-white/5"
+                    style={{ borderColor: B.borderH }}>
+                    <Icon className="w-4 h-4" style={{ color }} />
+                    <span className="text-white/80 font-semibold">{tipo === 'ADMIN' ? 'Admin' : 'Coordinador'}</span>
+                    <span className="text-[10px] text-white/40 font-mono">{hint}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
         </div>
-
-        <p className="text-center text-[10px] text-white/30 mt-6 tracking-wide">
-          © 2026 Alo Trans Carga · Soluciones logísticas para el Grupo UMA
-        </p>
       </div>
     </div>
   );
 }
 
-const FormField = ({ label, icon: Icon, error, children }) => (
+const FField = ({ label, icon: Icon, error, children }) => (
   <div>
     <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">{label}</label>
     <div className="relative">
@@ -537,18 +373,450 @@ const FormField = ({ label, icon: Icon, error, children }) => (
   </div>
 );
 
-const RoleButton = ({ selected, onClick, icon: Icon, label, desc, color }) => (
-  <button type="button" onClick={onClick}
-    className="flex flex-col items-center gap-1 p-3 rounded-xl border transition-all"
-    style={{
-      borderColor: selected ? color : BRAND.borderH,
-      backgroundColor: selected ? color + '10' : 'transparent'
-    }}>
-    <Icon className="w-4 h-4" style={{ color }} />
-    <span className="text-white/90 font-semibold text-sm">{label}</span>
-    <span className="text-[10px] text-white/40">{desc}</span>
+const BtnPrimary = ({ children, icon: Icon, loading, type = 'button', onClick, disabled }) => (
+  <button type={type} onClick={onClick} disabled={loading || disabled}
+    className="w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.01] disabled:opacity-60 disabled:scale-100"
+    style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
+    {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : Icon && <Icon className="w-4 h-4" />}
+    {loading ? 'Cargando...' : children}
   </button>
 );
+
+// ============================================================
+//  GESTOR DE COLUMNAS (ADMIN)
+// ============================================================
+function ColumnManagerView({ columns, onColumnsChange, showToast }) {
+  const [cols, setCols] = useState(columns);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newCol, setNewCol] = useState({ label: '', type: 'text', width: 130, required: false, group: 'Personalizado', options: '' });
+  const [filterGroup, setFilterGroup] = useState('TODOS');
+  const [searchCol, setSearchCol] = useState('');
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
+  const groups = useMemo(() => {
+    const gs = [...new Set(cols.map(c => c.group || 'Sin grupo'))];
+    return ['TODOS', ...gs];
+  }, [cols]);
+
+  const filtered = useMemo(() => {
+    let result = cols;
+    if (filterGroup !== 'TODOS') result = result.filter(c => (c.group || 'Sin grupo') === filterGroup);
+    if (searchCol.trim()) result = result.filter(c => c.label.toLowerCase().includes(searchCol.toLowerCase()) || c.id.toLowerCase().includes(searchCol.toLowerCase()));
+    return result;
+  }, [cols, filterGroup, searchCol]);
+
+  const visibleCount = cols.filter(c => c.visible).length;
+
+  const updateCol = (id, changes) => {
+    setCols(prev => prev.map(c => c.id === id ? { ...c, ...changes } : c));
+    setHasChanges(true);
+  };
+
+  const toggleVisible = (id) => {
+    const col = cols.find(c => c.id === id);
+    if (col?.required && col?.visible) {
+      showToast('Esta columna es requerida y no se puede ocultar', 'error');
+      return;
+    }
+    updateCol(id, { visible: !col.visible });
+  };
+
+  const moveUp = (id) => {
+    const idx = cols.findIndex(c => c.id === id);
+    if (idx === 0) return;
+    const next = [...cols];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    setCols(next.map((c, i) => ({ ...c, order: i })));
+    setHasChanges(true);
+  };
+
+  const moveDown = (id) => {
+    const idx = cols.findIndex(c => c.id === id);
+    if (idx === cols.length - 1) return;
+    const next = [...cols];
+    [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+    setCols(next.map((c, i) => ({ ...c, order: i })));
+    setHasChanges(true);
+  };
+
+  const startEdit = (col) => {
+    setEditingId(col.id);
+    setEditForm({ label: col.label, width: col.width, type: col.type, group: col.group || '', options: (col.options || []).join(', ') });
+  };
+
+  const saveEdit = (id) => {
+    const options = editForm.type === 'select'
+      ? editForm.options.split(',').map(s => s.trim()).filter(Boolean)
+      : undefined;
+    updateCol(id, {
+      label: editForm.label.trim() || cols.find(c => c.id === id).label,
+      width: Math.max(60, Math.min(400, Number(editForm.width) || 130)),
+      type: editForm.type,
+      group: editForm.group,
+      ...(options !== undefined ? { options } : {})
+    });
+    setEditingId(null);
+  };
+
+  const addCustomColumn = () => {
+    const label = newCol.label.trim();
+    if (!label) { showToast('Ingresa un nombre para la columna', 'error'); return; }
+    const id = `custom_${label.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}`;
+    const options = newCol.type === 'select'
+      ? newCol.options.split(',').map(s => s.trim()).filter(Boolean)
+      : undefined;
+    const col = {
+      id, label, type: newCol.type, width: newCol.width,
+      visible: true, required: false, locked: false,
+      group: newCol.group || 'Personalizado',
+      order: cols.length,
+      esCustom: true,
+      ...(options ? { options } : {})
+    };
+    setCols(prev => [...prev, col]);
+    setShowAddModal(false);
+    setNewCol({ label: '', type: 'text', width: 130, required: false, group: 'Personalizado', options: '' });
+    setHasChanges(true);
+    showToast(`Columna "${label}" creada`, 'success');
+  };
+
+  const deleteCustom = (id) => {
+    setCols(prev => prev.filter(c => c.id !== id));
+    setHasChanges(true);
+  };
+
+  const handleSave = () => {
+    const ordered = cols.map((c, i) => ({ ...c, order: i }));
+    if (saveColumns(ordered)) {
+      onColumnsChange(ordered);
+      setHasChanges(false);
+      showToast('Configuración de columnas guardada', 'success');
+    }
+  };
+
+  const handleReset = () => {
+    const def = DEFAULT_COLUMNS.map((c, i) => ({ ...c, order: i }));
+    setCols(def);
+    setHasChanges(true);
+    setConfirmReset(false);
+    showToast('Columnas restablecidas a valores predeterminados', 'info');
+  };
+
+  const showAllCols = () => { setCols(prev => prev.map(c => ({ ...c, visible: true }))); setHasChanges(true); };
+  const hideNonRequired = () => { setCols(prev => prev.map(c => c.required ? c : { ...c, visible: false })); setHasChanges(true); };
+
+  const typeIcon = (type) => ({ text: Type, number: Hash, date: Calendar, select: Layers }[type] || Type);
+
+  return (
+    <div className="space-y-5 animate-fade-up">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <SlidersHorizontal className="w-6 h-6" style={{ color: B.orange }} />
+            Gestión de Columnas
+          </h2>
+          <p className="text-sm text-white/50 mt-1">
+            Configura las {cols.length} columnas · {visibleCount} visibles · Arrastra para reordenar
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {USE_SUPABASE && (
+            <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-xl border"
+              style={{ color: '#10b981', borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.08)' }}>
+              <Database className="w-3 h-3" /> Supabase conectado
+            </span>
+          )}
+          <button onClick={() => setConfirmReset(true)}
+            className="px-4 py-2 rounded-xl text-xs font-medium border text-white/70 hover:bg-white/5"
+            style={{ borderColor: B.borderH }}>
+            Restablecer defaults
+          </button>
+          <button onClick={() => setShowAddModal(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold"
+            style={{ backgroundColor: B.blue + '20', color: B.blue, border: `1px solid ${B.blue}40` }}>
+            <Plus className="w-4 h-4" /> Nueva columna
+          </button>
+          {hasChanges && (
+            <button onClick={handleSave}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold hover:scale-[1.02]"
+              style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
+              <Save className="w-4 h-4" /> Guardar cambios
+            </button>
+          )}
+        </div>
+      </div>
+
+      {hasChanges && (
+        <div className="rounded-xl border p-3 flex items-center gap-2 text-sm"
+          style={{ backgroundColor: 'rgba(255,106,0,0.08)', borderColor: 'rgba(255,106,0,0.3)' }}>
+          <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: B.orange }} />
+          <span className="text-white/80">Tienes cambios sin guardar. Haz clic en <strong style={{ color: B.orange }}>"Guardar cambios"</strong> para aplicarlos.</span>
+        </div>
+      )}
+
+      {/* Acciones masivas */}
+      <div className="rounded-3xl border p-4 flex items-center gap-3 flex-wrap"
+        style={{ backgroundColor: B.card, borderColor: B.border }}>
+        <span className="text-xs font-bold uppercase tracking-wider text-white/50">Acciones masivas:</span>
+        <button onClick={showAllCols} className="px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-white/5"
+          style={{ borderColor: B.borderH, color: '#10b981' }}>
+          Mostrar todas
+        </button>
+        <button onClick={hideNonRequired} className="px-3 py-1.5 rounded-lg text-xs font-medium border hover:bg-white/5"
+          style={{ borderColor: B.borderH, color: '#f59e0b' }}>
+          Solo requeridas
+        </button>
+        <span className="text-white/30 text-xs">|</span>
+        <span className="text-xs text-white/50">Visibles: <strong className="text-white">{visibleCount}</strong> / {cols.length}</span>
+      </div>
+
+      {/* Filtros */}
+      <div className="rounded-3xl border p-4 flex flex-col sm:flex-row gap-3"
+        style={{ backgroundColor: B.card, borderColor: B.border }}>
+        <div className="relative flex-1">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+          <input type="text" value={searchCol} onChange={e => setSearchCol(e.target.value)}
+            placeholder="Buscar columna..."
+            className="w-full pl-11 pr-4 py-2.5 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+            style={{ borderColor: B.borderH }} />
+        </div>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {groups.map(g => (
+            <button key={g} onClick={() => setFilterGroup(g)}
+              className="px-3 py-2 rounded-xl text-xs font-medium border whitespace-nowrap transition-all"
+              style={{
+                backgroundColor: filterGroup === g ? B.orange + '20' : 'transparent',
+                borderColor: filterGroup === g ? B.orange + '60' : B.border,
+                color: filterGroup === g ? B.orange : 'rgba(255,255,255,0.6)'
+              }}>
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lista de columnas */}
+      <div className="rounded-3xl border overflow-hidden"
+        style={{ backgroundColor: B.card, borderColor: B.border }}>
+        <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] gap-0 text-[10px] font-bold uppercase tracking-wider text-white/40 px-4 py-3 border-b"
+          style={{ borderColor: B.border }}>
+          <span className="w-8">VIS.</span>
+          <span>NOMBRE / ID</span>
+          <span className="w-20 text-center">TIPO</span>
+          <span className="w-16 text-center">ANCHO</span>
+          <span className="w-16 text-center">ORDEN</span>
+          <span className="w-20 text-center">ACCIONES</span>
+        </div>
+
+        <div className="divide-y" style={{ borderColor: B.border }}>
+          {filtered.map(col => {
+            const TypeIcon = typeIcon(col.type);
+            const isEditing = editingId === col.id;
+            return (
+              <div key={col.id} className="px-4 py-3 hover:bg-white/[0.02] transition-colors">
+                {isEditing ? (
+                  // ── Fila en edición ──────────────────────────────────────
+                  <div className="flex items-start gap-3 flex-wrap">
+                    <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-white/40 mb-1 block">Nombre (label)</label>
+                        <input value={editForm.label} onChange={e => setEditForm(prev => ({ ...prev, label: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl bg-black/40 border text-white text-sm focus:outline-none"
+                          style={{ borderColor: B.orange }} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/40 mb-1 block">Tipo</label>
+                        <select value={editForm.type} onChange={e => setEditForm(prev => ({ ...prev, type: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl bg-black/40 border text-white text-sm cursor-pointer focus:outline-none"
+                          style={{ borderColor: B.borderH }}>
+                          {COLUMN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/40 mb-1 block">Ancho (px)</label>
+                        <input type="number" min={60} max={400} value={editForm.width}
+                          onChange={e => setEditForm(prev => ({ ...prev, width: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl bg-black/40 border text-white text-sm focus:outline-none"
+                          style={{ borderColor: B.borderH }} />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-white/40 mb-1 block">Grupo</label>
+                        <input value={editForm.group} onChange={e => setEditForm(prev => ({ ...prev, group: e.target.value }))}
+                          className="w-full px-3 py-2 rounded-xl bg-black/40 border text-white text-sm focus:outline-none"
+                          style={{ borderColor: B.borderH }} />
+                      </div>
+                      {editForm.type === 'select' && (
+                        <div className="sm:col-span-2">
+                          <label className="text-[10px] text-white/40 mb-1 block">Opciones (separadas por coma)</label>
+                          <input value={editForm.options} onChange={e => setEditForm(prev => ({ ...prev, options: e.target.value }))}
+                            placeholder="Opción 1, Opción 2, Opción 3"
+                            className="w-full px-3 py-2 rounded-xl bg-black/40 border text-white text-sm focus:outline-none"
+                            style={{ borderColor: B.borderH }} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => saveEdit(col.id)}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center border hover:scale-105"
+                        style={{ backgroundColor: 'rgba(16,185,129,0.15)', borderColor: 'rgba(16,185,129,0.4)' }}>
+                        <Check className="w-4 h-4" style={{ color: '#10b981' }} />
+                      </button>
+                      <button onClick={() => setEditingId(null)}
+                        className="w-9 h-9 rounded-xl flex items-center justify-center border hover:scale-105"
+                        style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                        <X className="w-4 h-4" style={{ color: '#ef4444' }} />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  // ── Fila normal ──────────────────────────────────────────
+                  <div className="grid grid-cols-[auto_1fr_auto_auto_auto_auto] items-center gap-3">
+                    {/* Toggle visible */}
+                    <button onClick={() => toggleVisible(col.id)} className="w-8 flex justify-center">
+                      {col.visible
+                        ? <ToggleRight className="w-5 h-5" style={{ color: '#10b981' }} />
+                        : <ToggleLeft className="w-5 h-5 text-white/30" />}
+                    </button>
+
+                    {/* Nombre */}
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`text-sm font-medium ${col.visible ? 'text-white' : 'text-white/40 line-through'}`}>{col.label}</span>
+                        {col.required && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold" style={{ color: B.orange, backgroundColor: B.orange + '15' }}>REQ</span>}
+                        {col.locked && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold text-white/40" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>🔒</span>}
+                        {col.esCustom && <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold" style={{ color: B.blue, backgroundColor: B.blue + '15' }}>CUSTOM</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-[10px] text-white/40 font-mono">{col.id}</span>
+                        <span className="text-[10px] text-white/30">·</span>
+                        <span className="text-[10px] text-white/40">{col.group}</span>
+                      </div>
+                    </div>
+
+                    {/* Tipo */}
+                    <div className="w-20 flex justify-center">
+                      <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
+                        style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)' }}>
+                        <TypeIcon className="w-3 h-3" />
+                        {col.type}
+                      </div>
+                    </div>
+
+                    {/* Ancho */}
+                    <div className="w-16 text-center text-xs font-mono text-white/50">{col.width}px</div>
+
+                    {/* Orden */}
+                    <div className="w-16 flex justify-center gap-1">
+                      <button onClick={() => moveUp(col.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white transition-colors">
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => moveDown(col.id)}
+                        className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-white/10 text-white/40 hover:text-white transition-colors">
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Acciones */}
+                    <div className="w-20 flex justify-center gap-1">
+                      <button onClick={() => startEdit(col)}
+                        className="w-8 h-8 rounded-lg flex items-center justify-center border hover:scale-110"
+                        style={{ backgroundColor: B.blue + '15', borderColor: B.blue + '40' }}
+                        title="Editar columna">
+                        <Pencil className="w-3.5 h-3.5" style={{ color: B.blue }} />
+                      </button>
+                      {col.esCustom && !col.locked && (
+                        <button onClick={() => deleteCustom(col.id)}
+                          className="w-8 h-8 rounded-lg flex items-center justify-center border hover:scale-110"
+                          style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}
+                          title="Eliminar columna custom">
+                          <Trash2 className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Modal: agregar columna custom */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-md"
+          style={{ backgroundColor: 'rgba(0,0,0,0.65)' }} onClick={() => setShowAddModal(false)}>
+          <div className="max-w-md w-full rounded-3xl border p-6 animate-fade-up"
+            style={{ backgroundColor: B.card, borderColor: B.orange + '40' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-white font-bold text-lg flex items-center gap-2">
+                <Plus className="w-5 h-5" style={{ color: B.orange }} /> Nueva columna
+              </h3>
+              <button onClick={() => setShowAddModal(false)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white/10">
+                <X className="w-4 h-4 text-white/50" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">Nombre de la columna *</label>
+                <input value={newCol.label} onChange={e => setNewCol(prev => ({ ...prev, label: e.target.value }))}
+                  placeholder="Ej. NÚMERO DE GUÍA"
+                  className="w-full px-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                  style={{ borderColor: B.borderH }} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">Tipo</label>
+                  <select value={newCol.type} onChange={e => setNewCol(prev => ({ ...prev, type: e.target.value }))}
+                    className="w-full px-3 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
+                    style={{ borderColor: B.borderH }}>
+                    {COLUMN_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">Ancho (px)</label>
+                  <input type="number" min={60} max={400} value={newCol.width}
+                    onChange={e => setNewCol(prev => ({ ...prev, width: Number(e.target.value) }))}
+                    className="w-full px-3 py-3 rounded-xl bg-black/30 border text-white text-sm focus:outline-none"
+                    style={{ borderColor: B.borderH }} />
+                </div>
+              </div>
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">Grupo</label>
+                <input value={newCol.group} onChange={e => setNewCol(prev => ({ ...prev, group: e.target.value }))}
+                  placeholder="Ej. Identificación, Logística..."
+                  className="w-full px-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                  style={{ borderColor: B.borderH }} />
+              </div>
+              {newCol.type === 'select' && (
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-white/50 mb-2 block">Opciones (separadas por coma)</label>
+                  <input value={newCol.options} onChange={e => setNewCol(prev => ({ ...prev, options: e.target.value }))}
+                    placeholder="Opción 1, Opción 2, Opción 3"
+                    className="w-full px-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                    style={{ borderColor: B.borderH }} />
+                </div>
+              )}
+              <BtnPrimary icon={Plus} onClick={addCustomColumn}>Agregar columna</BtnPrimary>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmReset && (
+        <ConfirmModal title="¿Restablecer columnas?" message="Se perderán todas las personalizaciones y columnas custom"
+          color={B.orange} icon={AlertCircle}
+          onCancel={() => setConfirmReset(false)} onConfirm={handleReset}
+          confirmLabel="Restablecer" />
+      )}
+    </div>
+  );
+}
 
 // ============================================================
 //  APP PRINCIPAL
@@ -557,6 +825,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [sessionChecked, setSessionChecked] = useState(false);
   const [view, setView] = useState('dashboard');
+  const [columns, setColumns] = useState(() => loadColumns());
   const [servicios, setServicios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
@@ -565,54 +834,47 @@ export default function App() {
   const [editingRow, setEditingRow] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const showToast = useCallback((message, type = 'success') => setToast({ message, type }), []);
+  const showToast = useCallback((msg, type = 'success') => setToast({ message: msg, type }), []);
 
+  const visibleCols = useMemo(() => getVisibleColumns(columns), [columns]);
   const perms = useMemo(() => session ? PERMISOS[session.rol] : null, [session]);
-  const puede = useCallback((accion) => {
-    if (!session || !perms) return false;
-    return !!perms[accion];
-  }, [session, perms]);
+  const puede = useCallback((a) => !!(session && perms?.[a]), [session, perms]);
 
   // Verificar sesión persistida
   useEffect(() => {
-    try {
-      const s = storage.get('alotrans:session');
-      if (s) {
-        const loginTime = new Date(s.loginAt).getTime();
-        const OCHO_HORAS = 8 * 60 * 60 * 1000;
-        if (Date.now() - loginTime < OCHO_HORAS) setSession(s);
-        else storage.remove('alotrans:session');
-      }
-    } catch (e) { }
-    finally { setSessionChecked(true); }
+    const s = ls.get('alotrans:session');
+    if (s) {
+      const loginTime = new Date(s.loginAt).getTime();
+      if (Date.now() - loginTime < 8 * 3600000) setSession(s);
+      else ls.remove('alotrans:session');
+    }
+    setSessionChecked(true);
   }, []);
 
   // Cargar servicios
   useEffect(() => {
     if (!session) { setLoading(false); return; }
     setLoading(true);
-    try {
-      const data = storage.get('alotrans:servicios');
-      setServicios(Array.isArray(data) ? data : []);
-    } catch (e) { }
-    finally { setLoading(false); }
+    const data = ls.get('alotrans:servicios');
+    setServicios(Array.isArray(data) ? data : []);
+    setLoading(false);
   }, [session]);
 
   const persistServicios = (lista) => {
-    const ok = storage.set('alotrans:servicios', lista);
+    const ok = ls.set('alotrans:servicios', lista);
     if (!ok) showToast('Error al guardar', 'error');
     return ok;
   };
 
   const handleLogin = (sess) => {
-    storage.set('alotrans:session', sess);
+    ls.set('alotrans:session', sess);
     setSession(sess);
     setView('dashboard');
     showToast(`Bienvenido, ${sess.nombre}`, 'success');
   };
 
   const handleLogout = () => {
-    storage.remove('alotrans:session');
+    ls.remove('alotrans:session');
     setSession(null);
     setConfirmLogout(false);
     setMenuOpen(false);
@@ -620,35 +882,30 @@ export default function App() {
   };
 
   const handleBulkSave = (rows) => {
-    if (!puede('crear') && !puede('editar')) {
-      showToast('No tienes permisos', 'error');
-      return false;
-    }
-    const validRows = rows.filter(r => r.viajeInterno?.toString().trim() || r.coordina?.toString().trim());
-    if (validRows.length === 0) {
-      showToast('No hay filas con datos', 'error');
-      return false;
-    }
+    const validRows = rows.filter(r => {
+      const vi = r.viaje_interno?.toString().trim();
+      const co = r.coordina?.toString().trim();
+      return vi || co;
+    });
+    if (validRows.length === 0) { showToast('No hay filas con datos', 'error'); return false; }
+
     const now = new Date().toISOString();
-    const stamped = validRows.map(r => ({ ...r, actualizadoEn: now, creadoEn: r.creadoEn || now }));
+    const stamped = validRows.map(r => ({ ...r, actualizado_en: now, creado_en: r.creado_en || now }));
 
     const existingIds = new Set(servicios.map(s => s.id));
     const updated = [...servicios];
     let added = 0, modified = 0;
     stamped.forEach(r => {
       if (existingIds.has(r.id)) {
-        if (!puede('editar')) return;
         const idx = updated.findIndex(s => s.id === r.id);
         updated[idx] = r;
         modified++;
       } else {
-        if (!puede('crear')) return;
         updated.unshift(r);
         added++;
       }
     });
-    const ok = persistServicios(updated);
-    if (ok) {
+    if (persistServicios(updated)) {
       setServicios(updated);
       showToast(`${added} nuevos · ${modified} actualizados`, 'success');
       setView('operaciones');
@@ -660,12 +917,8 @@ export default function App() {
 
   const handleDelete = (id) => {
     if (!puede('eliminar')) { showToast('Solo admins pueden eliminar', 'error'); return; }
-    const nuevaLista = servicios.filter(s => s.id !== id);
-    if (persistServicios(nuevaLista)) {
-      setServicios(nuevaLista);
-      showToast('Servicio eliminado');
-      setConfirmDelete(null);
-    }
+    const next = servicios.filter(s => s.id !== id);
+    if (persistServicios(next)) { setServicios(next); showToast('Servicio eliminado'); setConfirmDelete(null); }
   };
 
   const handleEditRow = (servicio) => {
@@ -675,7 +928,6 @@ export default function App() {
   };
 
   const exportJSON = () => {
-    if (!puede('exportar')) return;
     const blob = new Blob([JSON.stringify(servicios, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -686,22 +938,25 @@ export default function App() {
 
   const globalStyles = `
     @keyframes slide-in { from { transform: translateX(120%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    .animate-slide-in { animation: slide-in 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+    .animate-slide-in { animation: slide-in 0.4s cubic-bezier(0.22,1,0.36,1); }
     @keyframes fade-up { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-    .animate-fade-up { animation: fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both; }
-    ::-webkit-scrollbar { width: 10px; height: 10px; }
-    ::-webkit-scrollbar-track { background: ${BRAND.bg}; }
-    ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 8px; }
-    ::-webkit-scrollbar-thumb:hover { background: ${BRAND.orange}; }
+    .animate-fade-up { animation: fade-up 0.5s cubic-bezier(0.22,1,0.36,1) both; }
+    ::-webkit-scrollbar { width:10px; height:10px; }
+    ::-webkit-scrollbar-track { background:${B.bg}; }
+    ::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.08); border-radius:8px; }
+    ::-webkit-scrollbar-thumb:hover { background:${B.orange}; }
+    input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.5); }
+    select option { background-color: #161d33; color: white; }
   `;
 
   if (!sessionChecked) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ backgroundColor: BRAND.bg }}>
-        <AloTransLogo size="lg" />
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ backgroundColor: B.bg }}>
+        <style>{globalStyles}</style>
+        <Logo size="lg" />
         <div className="flex items-center gap-2 text-white/50 text-sm mt-4">
-          <RefreshCw className="w-4 h-4 animate-spin" style={{ color: BRAND.orange }} />
-          <span>Verificando sesión...</span>
+          <RefreshCw className="w-4 h-4 animate-spin" style={{ color: B.orange }} />
+          <span>Cargando...</span>
         </div>
       </div>
     );
@@ -721,37 +976,34 @@ export default function App() {
     { key: 'dashboard',   label: 'Panel',     icon: LayoutDashboard, show: true },
     { key: 'operaciones', label: 'Servicios', icon: List,            show: true },
     { key: 'captura',     label: 'Captura',   icon: FileSpreadsheet, show: true },
-    { key: 'usuarios',    label: 'Usuarios',  icon: Users,           show: puede('gestionarUsuarios') }
+    { key: 'columnas',    label: 'Columnas',  icon: Columns,         show: puede('gestionarColumnas') },
+    { key: 'usuarios',    label: 'Usuarios',  icon: Users,           show: puede('gestionarUsuarios') },
   ].filter(x => x.show);
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: BRAND.bg, fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
+    <div className="min-h-screen" style={{ backgroundColor: B.bg, fontFamily: 'ui-sans-serif, system-ui, sans-serif' }}>
       <style>{globalStyles}</style>
       <Toast toast={toast} onClose={() => setToast(null)} />
 
       <div className="fixed inset-0 pointer-events-none opacity-40" style={{
         backgroundImage: `radial-gradient(circle at 15% 10%, rgba(255,106,0,0.06), transparent 40%), radial-gradient(circle at 85% 90%, rgba(43,127,199,0.05), transparent 40%)`
       }} />
-      <div className="fixed inset-0 pointer-events-none opacity-30" style={{
-        backgroundImage: 'linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px)',
-        backgroundSize: '60px 60px'
-      }} />
 
       <header className="relative z-20 backdrop-blur-xl border-b sticky top-0"
-        style={{ backgroundColor: 'rgba(10,14,26,0.85)', borderColor: BRAND.border }}>
+        style={{ backgroundColor: 'rgba(10,14,26,0.85)', borderColor: B.border }}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
-          <AloTransLogo size="sm" />
+          <Logo size="sm" />
 
           <nav className="hidden md:flex items-center gap-1 p-1 rounded-2xl border"
-            style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderColor: BRAND.border }}>
+            style={{ backgroundColor: 'rgba(0,0,0,0.3)', borderColor: B.border }}>
             {navItems.map(item => (
               <button key={item.key} onClick={() => { setView(item.key); setEditingRow(null); }}
                 className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm transition-all"
                 style={{
-                  backgroundColor: view === item.key ? BRAND.orange : 'transparent',
+                  backgroundColor: view === item.key ? B.orange : 'transparent',
                   color: view === item.key ? 'white' : 'rgba(255,255,255,0.6)',
                   fontWeight: view === item.key ? 700 : 500,
-                  boxShadow: view === item.key ? `0 4px 16px ${BRAND.orange}40` : 'none'
+                  boxShadow: view === item.key ? `0 4px 16px ${B.orange}40` : 'none'
                 }}>
                 <item.icon className="w-4 h-4" /> {item.label}
               </button>
@@ -760,11 +1012,11 @@ export default function App() {
 
           <button onClick={() => setMenuOpen(!menuOpen)}
             className="flex items-center gap-2 px-3 py-2 rounded-xl border text-white/80 hover:bg-white/5 transition-colors"
-            style={{ borderColor: BRAND.borderH }}>
+            style={{ borderColor: B.borderH }}>
             <div className="w-7 h-7 rounded-lg flex items-center justify-center"
               style={{
-                backgroundColor: session.rol === 'ADMIN' ? BRAND.orange + '20' : BRAND.blue + '20',
-                color: session.rol === 'ADMIN' ? BRAND.orange : BRAND.blue
+                backgroundColor: session.rol === 'ADMIN' ? B.orange + '20' : B.blue + '20',
+                color: session.rol === 'ADMIN' ? B.orange : B.blue
               }}>
               {session.rol === 'ADMIN' ? <Shield className="w-3.5 h-3.5" /> : <UserCog className="w-3.5 h-3.5" />}
             </div>
@@ -777,27 +1029,24 @@ export default function App() {
           <>
             <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
             <div className="absolute top-full right-4 mt-2 w-72 rounded-2xl border backdrop-blur-xl p-3 z-40 animate-fade-up"
-              style={{ backgroundColor: 'rgba(17,23,41,0.95)', borderColor: BRAND.borderH, boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
-              <div className="px-3 py-3 border-b mb-2" style={{ borderColor: BRAND.border }}>
+              style={{ backgroundColor: 'rgba(17,23,41,0.95)', borderColor: B.borderH, boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }}>
+              <div className="px-3 py-3 border-b mb-2" style={{ borderColor: B.border }}>
                 <p className="text-sm font-bold text-white">{session.nombre}</p>
                 <p className="text-xs text-white/50">@{session.username}</p>
-                <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-bold border"
-                  style={{
-                    color: session.rol === 'ADMIN' ? BRAND.orange : BRAND.blue,
-                    backgroundColor: session.rol === 'ADMIN' ? BRAND.orange + '15' : BRAND.blue + '15',
-                    borderColor: session.rol === 'ADMIN' ? BRAND.orange + '40' : BRAND.blue + '40'
-                  }}>
-                  {session.rol === 'ADMIN' ? <Shield className="w-3 h-3" /> : <UserCog className="w-3 h-3" />}
-                  {session.rol}
-                </span>
+                {USE_SUPABASE && (
+                  <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] border"
+                    style={{ color: '#10b981', borderColor: 'rgba(16,185,129,0.3)', backgroundColor: 'rgba(16,185,129,0.08)' }}>
+                    <Database className="w-3 h-3" /> Supabase
+                  </span>
+                )}
               </div>
-              <div className="md:hidden space-y-1 mb-2 pb-2 border-b" style={{ borderColor: BRAND.border }}>
+              <div className="md:hidden space-y-1 mb-2 pb-2 border-b" style={{ borderColor: B.border }}>
                 {navItems.map(item => (
                   <button key={item.key} onClick={() => { setView(item.key); setMenuOpen(false); setEditingRow(null); }}
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors"
                     style={{
-                      backgroundColor: view === item.key ? BRAND.orange + '15' : 'transparent',
-                      color: view === item.key ? BRAND.orange : 'rgba(255,255,255,0.8)'
+                      backgroundColor: view === item.key ? B.orange + '15' : 'transparent',
+                      color: view === item.key ? B.orange : 'rgba(255,255,255,0.8)'
                     }}>
                     <item.icon className="w-4 h-4" /> {item.label}
                   </button>
@@ -805,12 +1054,12 @@ export default function App() {
               </div>
               {puede('exportar') && (
                 <button onClick={() => { exportJSON(); setMenuOpen(false); }}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/80 hover:bg-white/5 transition-colors">
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-white/80 hover:bg-white/5">
                   <Download className="w-4 h-4" /> Exportar JSON
                 </button>
               )}
               <button onClick={() => setConfirmLogout(true)}
-                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-red-500/10 transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-red-500/10"
                 style={{ color: '#ef4444' }}>
                 <LogOut className="w-4 h-4" /> Cerrar sesión
               </button>
@@ -820,13 +1069,15 @@ export default function App() {
       </header>
 
       <main className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 py-6 sm:py-8">
-        {view === 'dashboard'   && <DashboardView servicios={servicios} loading={loading} session={session} />}
+        {view === 'dashboard'   && <DashboardView servicios={servicios} loading={loading} session={session} visibleCols={visibleCols} />}
         {view === 'operaciones' && <OperacionesView servicios={servicios} loading={loading}
-          onEdit={handleEditRow} onDelete={(id) => setConfirmDelete(id)}
-          onNewBulk={() => { setView('captura'); setEditingRow(null); }} puede={puede} />}
+          onEdit={handleEditRow} onDelete={id => setConfirmDelete(id)}
+          onNewBulk={() => { setView('captura'); setEditingRow(null); }} puede={puede} visibleCols={visibleCols} />}
         {view === 'captura' && <SpreadsheetView initialRows={editingRow ? [editingRow] : null}
           onSave={handleBulkSave} onCancel={() => { setView('operaciones'); setEditingRow(null); }}
-          showToast={showToast} isEditing={!!editingRow} />}
+          showToast={showToast} isEditing={!!editingRow} visibleCols={visibleCols} />}
+        {view === 'columnas' && puede('gestionarColumnas') && (
+          <ColumnManagerView columns={columns} onColumnsChange={setColumns} showToast={showToast} />)}
         {view === 'usuarios' && puede('gestionarUsuarios') && <UsuariosView showToast={showToast} session={session} />}
       </main>
 
@@ -836,23 +1087,22 @@ export default function App() {
           onCancel={() => setConfirmDelete(null)} onConfirm={() => handleDelete(confirmDelete)}
           confirmLabel="Eliminar" />
       )}
-
       {confirmLogout && (
-        <ConfirmModal title="¿Cerrar sesión?" message="Deberás autenticarte de nuevo para continuar"
-          color={BRAND.orange} icon={LogOut}
+        <ConfirmModal title="¿Cerrar sesión?" message="Deberás autenticarte de nuevo"
+          color={B.orange} icon={LogOut}
           onCancel={() => setConfirmLogout(false)} onConfirm={handleLogout}
           confirmLabel="Cerrar sesión" />
       )}
 
-      <footer className="relative z-10 mt-12 border-t py-5" style={{ borderColor: BRAND.border }}>
+      <footer className="relative z-10 mt-12 border-t py-5" style={{ borderColor: B.border }}>
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <AloTransLogo size="xs" />
+            <Logo size="xs" />
             <p className="text-xs text-white/30">© 2026 · Panel Maestro de Operaciones · Grupo UMA</p>
           </div>
           <div className="flex items-center gap-2 text-xs text-white/30">
             <Database className="w-3.5 h-3.5" />
-            <span>{servicios.length} registros · Sesión activa</span>
+            <span>{servicios.length} registros · {visibleCols.length} columnas activas</span>
           </div>
         </div>
       </footer>
@@ -870,125 +1120,86 @@ function DashboardView({ servicios, loading, session }) {
     const facturados = servicios.filter(s => s.estado === 'FACTURADO').length;
     const terminados = servicios.filter(s => s.estado === 'TERMINADO' || s.estado === 'CUMPLIDO').length;
     const cancelados = servicios.filter(s => s.estado === 'CANCELADO').length;
-
-    const totalFacturable = servicios
-      .filter(s => ESTADOS_FACTURABLES.includes(s.estado))
-      .reduce((acc, s) => acc + (Number(s.valorTotal) || 0), 0);
-
-    const valorEnCurso = servicios
-      .filter(s => s.estado === 'EN CURSO')
-      .reduce((acc, s) => acc + (Number(s.valorTotal) || 0), 0);
-
+    const totalFacturable = servicios.filter(s => ESTADOS_FACTURABLES.includes(s.estado)).reduce((a, s) => a + (Number(s.valor_total) || 0), 0);
+    const valorEnCurso = servicios.filter(s => s.estado === 'EN CURSO').reduce((a, s) => a + (Number(s.valor_total) || 0), 0);
     const porCliente = {};
     servicios.forEach(s => {
       const c = s.cliente || 'Sin cliente';
       if (!porCliente[c]) porCliente[c] = { count: 0, valor: 0 };
       porCliente[c].count++;
-      if (ESTADOS_FACTURABLES.includes(s.estado)) porCliente[c].valor += Number(s.valorTotal) || 0;
+      if (ESTADOS_FACTURABLES.includes(s.estado)) porCliente[c].valor += Number(s.valor_total) || 0;
     });
-    const clientesTop = Object.entries(porCliente)
-      .sort((a, b) => b[1].valor - a[1].valor)
-      .slice(0, 5);
-
-    const ultimos = [...servicios]
-      .sort((a, b) => new Date(b.actualizadoEn || b.creadoEn || 0) - new Date(a.actualizadoEn || a.creadoEn || 0))
-      .slice(0, 5);
-
+    const clientesTop = Object.entries(porCliente).sort((a, b) => b[1].valor - a[1].valor).slice(0, 5);
+    const ultimos = [...servicios].sort((a, b) => new Date(b.actualizado_en || b.creado_en || 0) - new Date(a.actualizado_en || a.creado_en || 0)).slice(0, 5);
     return { total, enCurso, facturados, terminados, cancelados, totalFacturable, valorEnCurso, clientesTop, ultimos };
   }, [servicios]);
 
-  if (loading) {
-    return (
-      <div className="space-y-4">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-32 rounded-3xl animate-pulse"
-            style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.1}s` }} />
-        ))}
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="space-y-4">
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="h-32 rounded-3xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.1}s` }} />
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-6 animate-fade-up">
       <div className="rounded-3xl border p-6 sm:p-7 relative overflow-hidden"
-        style={{
-          background: `linear-gradient(135deg, ${BRAND.card} 0%, ${BRAND.cardAlt} 100%)`,
-          borderColor: BRAND.borderH
-        }}>
-        <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full opacity-20"
-          style={{ background: `radial-gradient(circle, ${BRAND.orange} 0%, transparent 70%)` }} />
+        style={{ background: `linear-gradient(135deg, ${B.card}, ${B.cardAlt})`, borderColor: B.borderH }}>
+        <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full opacity-15"
+          style={{ background: `radial-gradient(circle, ${B.orange} 0%, transparent 70%)` }} />
         <div className="relative flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: BRAND.orange }}>
-              Panel Maestro de Operaciones
-            </p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">
-              Hola, {session.nombre.split(' ')[0]} 👋
-            </h1>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: B.orange }}>Panel Maestro de Operaciones</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">Hola, {session.nombre.split(' ')[0]} 👋</h1>
             <p className="text-sm text-white/60 mt-2">Resumen operativo del Grupo UMA en tiempo real</p>
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
             style={{
-              color: session.rol === 'ADMIN' ? BRAND.orange : BRAND.blue,
-              backgroundColor: (session.rol === 'ADMIN' ? BRAND.orange : BRAND.blue) + '15',
-              borderColor: (session.rol === 'ADMIN' ? BRAND.orange : BRAND.blue) + '40'
+              color: session.rol === 'ADMIN' ? B.orange : B.blue,
+              backgroundColor: (session.rol === 'ADMIN' ? B.orange : B.blue) + '15',
+              borderColor: (session.rol === 'ADMIN' ? B.orange : B.blue) + '40'
             }}>
-            {session.rol === 'ADMIN' ? <Shield className="w-3 h-3" /> : <UserCog className="w-3 h-3" />}
-            {session.rol}
+            {session.rol === 'ADMIN' ? <Shield className="w-3 h-3" /> : <UserCog className="w-3 h-3" />} {session.rol}
           </span>
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <BigKpi icon={CircleDollarSign} label="Total Facturable"
-          helper="Servicios finalizados y facturados"
-          value={fmtCOP(stats.totalFacturable)}
-          valueCompact={fmtCOPCompact(stats.totalFacturable)}
-          color="#10b981" highlight />
-        <BigKpi icon={Clock} label="Valor en Curso"
-          helper="No suma al total facturado"
-          value={fmtCOP(stats.valorEnCurso)}
-          valueCompact={fmtCOPCompact(stats.valorEnCurso)}
-          color="#f59e0b" />
+        <BigKpi icon={CircleDollarSign} label="Total Facturable" helper="Finalizados y facturados"
+          value={fmtCOP(stats.totalFacturable)} compact={fmtCOPCompact(stats.totalFacturable)} color="#10b981" highlight />
+        <BigKpi icon={Clock} label="Valor en Curso" helper="No suma al total"
+          value={fmtCOP(stats.valorEnCurso)} compact={fmtCOPCompact(stats.valorEnCurso)} color="#f59e0b" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <MiniKpi icon={ClipboardList} label="Total" value={stats.total} color={BRAND.orange} />
-        <MiniKpi icon={Clock} label="En Curso" value={stats.enCurso} color="#f59e0b" />
-        <MiniKpi icon={FileCheck2} label="Facturados" value={stats.facturados} color={BRAND.blue} />
-        <MiniKpi icon={CheckCircle2} label="Terminados" value={stats.terminados} color="#10b981" />
-        <MiniKpi icon={X} label="Cancelados" value={stats.cancelados} color="#ef4444" />
+        {[
+          { icon: ClipboardList, label: 'Total', value: stats.total, color: B.orange },
+          { icon: Clock, label: 'En Curso', value: stats.enCurso, color: '#f59e0b' },
+          { icon: FileCheck2, label: 'Facturados', value: stats.facturados, color: B.blue },
+          { icon: CheckCircle2, label: 'Terminados', value: stats.terminados, color: '#10b981' },
+          { icon: X, label: 'Cancelados', value: stats.cancelados, color: '#ef4444' }
+        ].map(kpi => <MiniKpi key={kpi.label} {...kpi} />)}
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="rounded-3xl border p-5 sm:p-6"
-          style={{ backgroundColor: BRAND.card, borderColor: BRAND.border }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" style={{ color: BRAND.orange }} />
-              <h3 className="font-bold text-white">Facturación por Cliente</h3>
-            </div>
-            <BarChart3 className="w-4 h-4 text-white/30" />
+        <div className="rounded-3xl border p-5 sm:p-6" style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="w-4 h-4" style={{ color: B.orange }} />
+            <h3 className="font-bold text-white">Facturación por Cliente</h3>
           </div>
-          {stats.clientesTop.length === 0 ? (
-            <p className="text-center text-white/40 text-sm py-12">Sin datos disponibles</p>
-          ) : (
+          {stats.clientesTop.length === 0 ? <p className="text-center text-white/40 text-sm py-12">Sin datos</p> : (
             <div className="space-y-3">
               {stats.clientesTop.map(([cliente, data]) => {
                 const max = Math.max(...stats.clientesTop.map(([, d]) => d.valor), 1);
-                const pct = (data.valor / max) * 100;
                 return (
                   <div key={cliente}>
                     <div className="flex items-center justify-between text-sm mb-1.5">
                       <span className="text-white/90 font-medium">{cliente}</span>
-                      <span className="font-bold font-mono" style={{ color: BRAND.orange }}>{fmtCOP(data.valor)}</span>
+                      <span className="font-bold font-mono" style={{ color: B.orange }}>{fmtCOP(data.valor)}</span>
                     </div>
                     <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                      <div className="h-full rounded-full transition-all duration-500"
-                        style={{
-                          width: `${pct}%`,
-                          background: `linear-gradient(90deg, ${BRAND.orange}, #ff8a3d)`
-                        }} />
+                      <div className="h-full rounded-full" style={{ width: `${(data.valor / max) * 100}%`, background: `linear-gradient(90deg, ${B.orange}, #ff8a3d)` }} />
                     </div>
                     <p className="text-[10px] text-white/40 mt-1">{data.count} servicios</p>
                   </div>
@@ -997,34 +1208,28 @@ function DashboardView({ servicios, loading, session }) {
             </div>
           )}
         </div>
-
-        <div className="rounded-3xl border p-5 sm:p-6"
-          style={{ backgroundColor: BRAND.card, borderColor: BRAND.border }}>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4" style={{ color: BRAND.blue }} />
-              <h3 className="font-bold text-white">Actividad Reciente</h3>
-            </div>
+        <div className="rounded-3xl border p-5 sm:p-6" style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-4 h-4" style={{ color: B.blue }} />
+            <h3 className="font-bold text-white">Actividad Reciente</h3>
           </div>
-          {stats.ultimos.length === 0 ? (
-            <p className="text-center text-white/40 text-sm py-12">Sin actividad reciente</p>
-          ) : (
+          {stats.ultimos.length === 0 ? <p className="text-center text-white/40 text-sm py-12">Sin actividad</p> : (
             <div className="space-y-2">
               {stats.ultimos.map(s => (
                 <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl border hover:bg-white/[0.02] transition-colors"
-                  style={{ borderColor: BRAND.border }}>
+                  style={{ borderColor: B.border }}>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm text-white truncate">{s.viajeInterno || '—'}</span>
+                      <span className="font-bold text-sm text-white truncate">{s.viaje_interno || '—'}</span>
                       <StatusPill status={s.estado} size="sm" />
                     </div>
                     <p className="text-xs text-white/50 mt-1 truncate">
-                      {s.ciudadOrigen || '?'} → {s.ciudadDestino || '?'} · {s.cliente}
+                      {s.ciudad_origen || '?'} → {s.ciudad_destino || '?'} · {s.cliente}
                     </p>
                   </div>
                   <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-sm font-mono" style={{ color: BRAND.orange }}>{fmtCOP(s.valorTotal)}</p>
-                    <p className="text-[10px] text-white/40">{fmtDate(s.fechaInicio)}</p>
+                    <p className="font-bold text-sm font-mono" style={{ color: B.orange }}>{fmtCOP(s.valor_total)}</p>
+                    <p className="text-[10px] text-white/40">{fmtDate(s.fecha_inicio_servicio)}</p>
                   </div>
                 </div>
               ))}
@@ -1038,8 +1243,8 @@ function DashboardView({ servicios, loading, session }) {
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
         <div className="text-xs text-white/70 leading-relaxed">
           <strong style={{ color: '#10b981' }}>Regla de cálculo: </strong>
-          el <em>Total Facturable</em> solo incluye servicios en estado <strong className="text-white">FACTURADO</strong>,
-          <strong className="text-white"> TERMINADO</strong> o <strong className="text-white">CUMPLIDO</strong>.
+          el <em>Total Facturable</em> solo incluye <strong className="text-white">FACTURADO</strong>,
+          <strong className="text-white"> TERMINADO</strong> y <strong className="text-white">CUMPLIDO</strong>.
           Los servicios <strong className="text-white">EN CURSO</strong> se muestran aparte y no suman al total.
         </div>
       </div>
@@ -1047,38 +1252,31 @@ function DashboardView({ servicios, loading, session }) {
   );
 }
 
-const BigKpi = ({ icon: Icon, label, helper, value, valueCompact, color, highlight }) => (
+const BigKpi = ({ icon: Icon, label, helper, value, compact, color, highlight }) => (
   <div className="rounded-3xl border p-5 sm:p-6 relative overflow-hidden"
-    style={{
-      backgroundColor: BRAND.card,
-      borderColor: highlight ? color + '40' : BRAND.border,
-      boxShadow: highlight ? `0 0 40px ${color}1A` : 'none'
-    }}>
-    <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full opacity-10"
-      style={{ backgroundColor: color }} />
+    style={{ backgroundColor: B.card, borderColor: highlight ? color + '40' : B.border, boxShadow: highlight ? `0 0 40px ${color}1A` : 'none' }}>
+    <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full opacity-10" style={{ backgroundColor: color }} />
     <div className="flex items-center justify-between mb-3 relative">
       <div>
         <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">{label}</p>
         <p className="text-[11px] text-white/40 mt-1">{helper}</p>
       </div>
-      <div className="w-12 h-12 rounded-2xl flex items-center justify-center border"
-        style={{ backgroundColor: color + '15', borderColor: color + '40' }}>
+      <div className="w-12 h-12 rounded-2xl flex items-center justify-center border" style={{ backgroundColor: color + '15', borderColor: color + '40' }}>
         <Icon className="w-5 h-5" style={{ color }} />
       </div>
     </div>
     <p className="font-bold text-white text-2xl sm:text-3xl break-all font-mono relative">
       <span className="hidden sm:inline">{value}</span>
-      <span className="sm:hidden">{valueCompact}</span>
+      <span className="sm:hidden">{compact}</span>
     </p>
   </div>
 );
 
 const MiniKpi = ({ icon: Icon, label, value, color }) => (
   <div className="rounded-2xl border p-3 sm:p-4 transition-transform hover:scale-[1.02]"
-    style={{ backgroundColor: BRAND.card, borderColor: BRAND.border }}>
+    style={{ backgroundColor: B.card, borderColor: B.border }}>
     <div className="flex items-center gap-2">
-      <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-        style={{ backgroundColor: color + '15' }}>
+      <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + '15' }}>
         <Icon className="w-3.5 h-3.5" style={{ color }} />
       </div>
       <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">{label}</p>
@@ -1088,141 +1286,152 @@ const MiniKpi = ({ icon: Icon, label, value, color }) => (
 );
 
 // ============================================================
-//  OPERACIONES
+//  OPERACIONES VIEW
 // ============================================================
-function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, puede }) {
+function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, puede, visibleCols }) {
   const [query, setQuery] = useState('');
   const [filterEstado, setFilterEstado] = useState('TODOS');
   const [filterCliente, setFilterCliente] = useState('TODOS');
 
+  const ESTADOS_ALL = ['EN CURSO', 'FACTURADO', 'TERMINADO', 'CUMPLIDO', 'CANCELADO'];
+  const CLIENTES_ALL = ['GRUPO UMA', 'AUTECO SAS', 'DONG FENG', 'OTROS'];
+
   const filtrados = useMemo(() => {
     return servicios.filter(s => {
       const q = query.toLowerCase().trim();
-      const matchQ = !q ||
-        s.viajeInterno?.toString().toLowerCase().includes(q) ||
-        s.placaRecurso?.toString().toLowerCase().includes(q) ||
-        s.nombreTecnico?.toString().toLowerCase().includes(q) ||
-        s.coordina?.toString().toLowerCase().includes(q);
-      const matchE = filterEstado === 'TODOS' || s.estado === filterEstado;
-      const matchC = filterCliente === 'TODOS' || s.cliente === filterCliente;
-      return matchQ && matchE && matchC;
+      const matchQ = !q || s.viaje_interno?.toString().toLowerCase().includes(q)
+        || s.placa_recurso?.toString().toLowerCase().includes(q)
+        || s.nombre_tecnico?.toString().toLowerCase().includes(q)
+        || s.coordina?.toString().toLowerCase().includes(q)
+        || s.manifiesto?.toString().toLowerCase().includes(q);
+      return matchQ
+        && (filterEstado === 'TODOS' || s.estado === filterEstado)
+        && (filterCliente === 'TODOS' || s.cliente === filterCliente);
     });
   }, [servicios, query, filterEstado, filterCliente]);
+
+  // Formato de celda para listado
+  const fmtCell = (col, value) => {
+    if (!value && value !== 0) return '—';
+    if (col.type === 'number') return fmtCOP(value);
+    if (col.type === 'date') return fmtDate(value);
+    return value;
+  };
 
   return (
     <div className="space-y-5 animate-fade-up">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-white">Operaciones</h2>
-          <p className="text-sm text-white/50 mt-1">Gestión de servicios registrados</p>
+          <p className="text-sm text-white/50 mt-1">Gestión de servicios · {filtrados.length} resultados</p>
         </div>
         {(puede('crear') || puede('editar')) && (
           <button onClick={onNewBulk}
             className="flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-            style={{
-              background: `linear-gradient(135deg, ${BRAND.orange}, #ff8a3d)`,
-              color: 'white',
-              boxShadow: `0 8px 24px ${BRAND.orange}40`
-            }}>
+            style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
             <Plus className="w-4 h-4" /> Nuevo Servicio
           </button>
         )}
       </div>
 
-      <div className="rounded-3xl border p-4 sm:p-5"
-        style={{ backgroundColor: BRAND.card, borderColor: BRAND.border }}>
+      <div className="rounded-3xl border p-4 sm:p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-            <input type="text" value={query} onChange={(e) => setQuery(e.target.value)}
-              placeholder="Buscar por viaje, placa, técnico..."
-              className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none focus:border-orange-500/40 transition-colors"
-              style={{ borderColor: BRAND.borderH }} />
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Buscar por viaje, placa, técnico, manifiesto..."
+              className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+              style={{ borderColor: B.borderH }} />
           </div>
-          <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-            <select value={filterEstado} onChange={(e) => setFilterEstado(e.target.value)}
-              className="flex-1 sm:flex-none px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
-              style={{ borderColor: BRAND.borderH }}>
+          <div className="flex gap-2">
+            <select value={filterEstado} onChange={e => setFilterEstado(e.target.value)}
+              className="flex-1 px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
+              style={{ borderColor: B.borderH }}>
               <option value="TODOS">Todos los estados</option>
-              {ESTADOS.map(e => <option key={e} value={e}>{e}</option>)}
+              {ESTADOS_ALL.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
-            <select value={filterCliente} onChange={(e) => setFilterCliente(e.target.value)}
-              className="flex-1 sm:flex-none px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
-              style={{ borderColor: BRAND.borderH }}>
+            <select value={filterCliente} onChange={e => setFilterCliente(e.target.value)}
+              className="flex-1 px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
+              style={{ borderColor: B.borderH }}>
               <option value="TODOS">Todos los clientes</option>
-              {CLIENTES.map(c => <option key={c} value={c}>{c}</option>)}
+              {CLIENTES_ALL.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
       </div>
 
-      <div className="rounded-3xl border overflow-hidden"
-        style={{ backgroundColor: BRAND.card, borderColor: BRAND.border }}>
+      <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: B.card, borderColor: B.border }}>
         {loading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-14 rounded-2xl animate-pulse"
-                style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.1}s` }} />
+              <div key={i} className="h-14 rounded-2xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }} />
             ))}
           </div>
         ) : servicios.length === 0 ? (
-          <EmptyState onAction={onNewBulk} canCreate={puede('crear')} />
+          <div className="p-12 sm:p-16 text-center">
+            <Package className="w-12 h-12 text-white/20 mx-auto mb-3" />
+            <p className="text-white font-bold mb-1">Sin servicios registrados</p>
+            <p className="text-white/50 text-sm mb-5">Usa "Nuevo Servicio" para empezar</p>
+            {puede('crear') && (
+              <button onClick={onNewBulk}
+                className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold hover:scale-[1.02]"
+                style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
+                <FileSpreadsheet className="w-4 h-4" /> Captura masiva
+              </button>
+            )}
+          </div>
         ) : filtrados.length === 0 ? (
-          <div className="p-10 sm:p-16 text-center">
+          <div className="p-10 text-center">
             <Search className="w-10 h-10 text-white/20 mx-auto mb-3" />
-            <p className="text-white/50 text-sm">No se encontraron resultados</p>
+            <p className="text-white/50 text-sm">Sin resultados para la búsqueda</p>
           </div>
         ) : (
           <>
+            {/* Tabla desktop */}
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b" style={{ borderColor: BRAND.border }}>
-                    {['Viaje', 'Estado', 'Cliente', 'Ruta', 'Placa', 'Fecha', 'Valor', 'Acciones'].map(h => (
+                  <tr className="border-b" style={{ borderColor: B.border }}>
+                    {['Viaje', 'Estado', 'Cliente', 'Ruta', 'Placa', 'Fecha Inicio', 'Valor Total', ''].map(h => (
                       <th key={h} className="px-4 py-3.5 text-left text-[10px] font-bold uppercase tracking-[0.15em] text-white/40 whitespace-nowrap">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {filtrados.map(s => (
-                    <tr key={s.id} className="border-b hover:bg-white/[0.02] transition-colors"
-                      style={{ borderColor: BRAND.border }}>
+                    <tr key={s.id} className="border-b hover:bg-white/[0.02] transition-colors" style={{ borderColor: B.border }}>
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-white text-sm">{s.viajeInterno || '—'}</div>
+                        <div className="font-bold text-white text-sm">{s.viaje_interno || '—'}</div>
                         <div className="text-xs text-white/40 mt-0.5">{s.coordina}</div>
                       </td>
                       <td className="px-4 py-3.5"><StatusPill status={s.estado} /></td>
                       <td className="px-4 py-3.5 text-sm text-white/80">{s.cliente}</td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-2 text-sm text-white/80">
-                          <MapPin className="w-3.5 h-3.5" style={{ color: BRAND.blue }} />
-                          <span>{s.ciudadOrigen || '?'} → {s.ciudadDestino || '?'}</span>
+                          <MapPin className="w-3.5 h-3.5" style={{ color: B.blue }} />
+                          <span>{s.ciudad_origen || '?'} → {s.ciudad_destino || '?'}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3.5">
-                        <div className="font-mono text-sm font-bold" style={{ color: BRAND.blue }}>{s.placaRecurso || '—'}</div>
+                        <div className="font-mono text-sm font-bold" style={{ color: B.blue }}>{s.placa_recurso || '—'}</div>
                       </td>
-                      <td className="px-4 py-3.5 text-sm text-white/70 whitespace-nowrap">{fmtDate(s.fechaInicio)}</td>
+                      <td className="px-4 py-3.5 text-sm text-white/70 whitespace-nowrap">{fmtDate(s.fecha_inicio_servicio)}</td>
                       <td className="px-4 py-3.5">
-                        <div className="font-bold text-sm whitespace-nowrap font-mono" style={{ color: BRAND.orange }}>
-                          {fmtCOP(s.valorTotal)}
-                        </div>
+                        <div className="font-bold text-sm whitespace-nowrap font-mono" style={{ color: B.orange }}>{fmtCOP(s.valor_total)}</div>
                       </td>
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-1.5">
                           {puede('editar') && (
                             <button onClick={() => onEdit(s)}
                               className="w-8 h-8 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
-                              style={{ backgroundColor: BRAND.blue + '15', borderColor: BRAND.blue + '40' }}
-                              title="Editar">
-                              <Edit3 className="w-3.5 h-3.5" style={{ color: BRAND.blue }} />
+                              style={{ backgroundColor: B.blue + '15', borderColor: B.blue + '40' }}>
+                              <Edit3 className="w-3.5 h-3.5" style={{ color: B.blue }} />
                             </button>
                           )}
                           {puede('eliminar') && (
                             <button onClick={() => onDelete(s.id)}
                               className="w-8 h-8 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
-                              style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}
-                              title="Eliminar">
+                              style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}>
                               <Trash2 className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />
                             </button>
                           )}
@@ -1234,34 +1443,35 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
               </table>
             </div>
 
+            {/* Cards móvil */}
             <div className="md:hidden p-3 space-y-3">
               {filtrados.map(s => (
                 <div key={s.id} className="rounded-2xl border p-4"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderColor: BRAND.border }}>
+                  style={{ backgroundColor: 'rgba(255,255,255,0.02)', borderColor: B.border }}>
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <div className="min-w-0">
-                      <div className="font-bold text-white truncate">{s.viajeInterno || '—'}</div>
+                      <div className="font-bold text-white truncate">{s.viaje_interno || '—'}</div>
                       <div className="text-xs text-white/40 mt-0.5 truncate">{s.coordina} · {s.cliente}</div>
                     </div>
                     <StatusPill status={s.estado} size="sm" />
                   </div>
-                  <div className="flex items-center gap-2 text-sm text-white/80 mt-2">
-                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: BRAND.blue }} />
-                    <span className="truncate">{s.ciudadOrigen || '?'} → {s.ciudadDestino || '?'}</span>
+                  <div className="flex items-center gap-2 text-sm text-white/80">
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" style={{ color: B.blue }} />
+                    <span className="truncate">{s.ciudad_origen || '?'} → {s.ciudad_destino || '?'}</span>
                   </div>
-                  <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: BRAND.border }}>
+                  <div className="flex items-center justify-between mt-3 pt-3 border-t" style={{ borderColor: B.border }}>
                     <div>
-                      <div className="font-mono text-xs font-bold" style={{ color: BRAND.blue }}>{s.placaRecurso || '—'}</div>
-                      <div className="text-[10px] text-white/40">{fmtDate(s.fechaInicio)}</div>
+                      <div className="font-mono text-xs font-bold" style={{ color: B.blue }}>{s.placa_recurso || '—'}</div>
+                      <div className="text-[10px] text-white/40">{fmtDate(s.fecha_inicio_servicio)}</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-sm font-mono" style={{ color: BRAND.orange }}>{fmtCOP(s.valorTotal)}</div>
+                      <div className="font-bold text-sm font-mono" style={{ color: B.orange }}>{fmtCOP(s.valor_total)}</div>
                       <div className="flex items-center gap-1 mt-1.5 justify-end">
                         {puede('editar') && (
                           <button onClick={() => onEdit(s)}
                             className="w-7 h-7 rounded-lg flex items-center justify-center border"
-                            style={{ backgroundColor: BRAND.blue + '15', borderColor: BRAND.blue + '40' }}>
-                            <Edit3 className="w-3 h-3" style={{ color: BRAND.blue }} />
+                            style={{ backgroundColor: B.blue + '15', borderColor: B.blue + '40' }}>
+                            <Edit3 className="w-3 h-3" style={{ color: B.blue }} />
                           </button>
                         )}
                         {puede('eliminar') && (
@@ -1279,7 +1489,7 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
             </div>
 
             <div className="px-5 py-3 border-t text-xs text-white/40 flex items-center justify-between"
-              style={{ borderColor: BRAND.border }}>
+              style={{ borderColor: B.border }}>
               <span>Mostrando {filtrados.length} de {servicios.length} servicios</span>
               <span className="flex items-center gap-1.5"><Database className="w-3 h-3" /> Datos persistidos</span>
             </div>
@@ -1290,36 +1500,14 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
   );
 }
 
-const EmptyState = ({ onAction, canCreate }) => (
-  <div className="p-12 sm:p-16 text-center">
-    <div className="w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-5 border"
-      style={{ backgroundColor: BRAND.orange + '10', borderColor: BRAND.orange + '30' }}>
-      <Package className="w-9 h-9" style={{ color: BRAND.orange }} />
-    </div>
-    <h3 className="text-white font-bold text-lg mb-1">Sin servicios registrados</h3>
-    <p className="text-white/50 text-sm mb-6">Empieza creando tu primer servicio o pegando datos desde Excel</p>
-    {canCreate && (
-      <button onClick={onAction}
-        className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-        style={{
-          background: `linear-gradient(135deg, ${BRAND.orange}, #ff8a3d)`,
-          color: 'white',
-          boxShadow: `0 8px 24px ${BRAND.orange}40`
-        }}>
-        <FileSpreadsheet className="w-4 h-4" /> Crear primer servicio
-      </button>
-    )}
-  </div>
-);
-
 // ============================================================
-//  SPREADSHEET (Captura masiva)
+//  SPREADSHEET VIEW (con columnas dinámicas)
 // ============================================================
-function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing }) {
+function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing, visibleCols }) {
   const FILAS_INICIALES = 10;
   const [rows, setRows] = useState(() => {
     if (initialRows && initialRows.length > 0) return [...initialRows];
-    return Array.from({ length: FILAS_INICIALES }, () => filaVacia());
+    return Array.from({ length: FILAS_INICIALES }, () => emptyRow());
   });
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [editingCell, setEditingCell] = useState(null);
@@ -1333,21 +1521,21 @@ function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing }
     }
   }, [editingCell]);
 
-  const updateCell = useCallback((rowIdx, colKey, value) => {
+  const updateCell = useCallback((rowIdx, colId, value) => {
     setRows(prev => {
       const next = [...prev];
-      next[rowIdx] = { ...next[rowIdx], [colKey]: value };
+      next[rowIdx] = { ...next[rowIdx], [colId]: value };
       return next;
     });
   }, []);
 
   const addRows = (n = 5) => {
-    setRows(prev => [...prev, ...Array.from({ length: n }, () => filaVacia())]);
+    setRows(prev => [...prev, ...Array.from({ length: n }, () => emptyRow())]);
     showToast(`${n} filas agregadas`, 'info');
   };
 
   const deleteRow = (idx) => {
-    if (rows.length === 1) setRows([filaVacia()]);
+    if (rows.length === 1) setRows([emptyRow()]);
     else setRows(prev => prev.filter((_, i) => i !== idx));
   };
 
@@ -1368,34 +1556,34 @@ function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing }
       matrix.forEach((cells, rOffset) => {
         const targetRow = startRow + rOffset;
         while (next.length <= targetRow) {
-          next.push(filaVacia());
+          next.push(emptyRow());
           filasAgregadas++;
         }
         cells.forEach((value, cOffset) => {
           const targetCol = startCol + cOffset;
-          if (targetCol >= COLUMNAS.length) return;
-          const col = COLUMNAS[targetCol];
+          if (targetCol >= visibleCols.length) return;
+          const col = visibleCols[targetCol];
           let parsed = value.trim();
           if (col.type === 'number') {
             const num = parsed.replace(/[$\s]/g, '').replace(/,/g, '').replace(/\./g, '');
             parsed = num === '' ? '' : (isNaN(Number(num)) ? parsed : Number(num));
           } else if (col.type === 'select') {
             const upper = parsed.toUpperCase();
-            const match = col.options.find(o => o.toUpperCase() === upper);
+            const match = (col.options || []).find(o => o.toUpperCase() === upper);
             if (match) parsed = match;
           }
-          next[targetRow] = { ...next[targetRow], [col.key]: parsed };
+          next[targetRow] = { ...next[targetRow], [col.id]: parsed };
         });
       });
       setTimeout(() => showToast(`${matrix.length} filas pegadas${filasAgregadas ? ` · +${filasAgregadas} nuevas` : ''}`, 'success'), 50);
       return next;
     });
     setEditingCell(null);
-  }, [showToast, editingCell]);
+  }, [showToast, editingCell, visibleCols]);
 
   const moveActiveCell = (row, col) => {
     const r = Math.max(0, Math.min(rows.length - 1, row));
-    const c = Math.max(0, Math.min(COLUMNAS.length - 1, col));
+    const c = Math.max(0, Math.min(visibleCols.length - 1, col));
     setActiveCell({ row: r, col: c });
   };
 
@@ -1413,10 +1601,10 @@ function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing }
       case 'ArrowRight': e.preventDefault(); moveActiveCell(rowIdx, colIdx + 1); break;
       case 'Tab':        e.preventDefault(); moveActiveCell(rowIdx, colIdx + (e.shiftKey ? -1 : 1)); break;
       case 'Enter': case 'F2': e.preventDefault(); setEditingCell({ row: rowIdx, col: colIdx }); break;
-      case 'Delete': case 'Backspace': e.preventDefault(); updateCell(rowIdx, COLUMNAS[colIdx].key, ''); break;
+      case 'Delete': case 'Backspace': e.preventDefault(); updateCell(rowIdx, visibleCols[colIdx].id, ''); break;
       default:
         if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
-          updateCell(rowIdx, COLUMNAS[colIdx].key, '');
+          updateCell(rowIdx, visibleCols[colIdx].id, '');
           setEditingCell({ row: rowIdx, col: colIdx });
         }
     }
@@ -1429,132 +1617,128 @@ function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing }
     setSaving(false);
   };
 
-  const filasConDatos = rows.filter(r => r.viajeInterno?.toString().trim() || r.coordina?.toString().trim()).length;
-  const totalValor = rows.reduce((acc, r) => acc + (Number(r.valorTotal) || 0), 0);
+  const filasConDatos = rows.filter(r => r.viaje_interno?.toString().trim() || r.coordina?.toString().trim()).length;
+  const totalValor = rows.reduce((acc, r) => acc + (Number(r.valor_total) || 0), 0);
 
   return (
     <div className="space-y-4 animate-fade-up pb-28">
       <div className="rounded-3xl border p-4 sm:p-5"
-        style={{
-          background: `linear-gradient(135deg, ${BRAND.card}, ${BRAND.cardAlt})`,
-          borderColor: BRAND.orange + '30'
-        }}>
+        style={{ background: `linear-gradient(135deg, ${B.card}, ${B.cardAlt})`, borderColor: B.orange + '30' }}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
             <button onClick={onCancel}
-              className="w-10 h-10 rounded-xl flex items-center justify-center border hover:bg-white/5 transition-colors"
-              style={{ borderColor: BRAND.borderH }}>
+              className="w-10 h-10 rounded-xl flex items-center justify-center border hover:bg-white/5"
+              style={{ borderColor: B.borderH }}>
               <ArrowLeft className="w-4 h-4 text-white/70" />
             </button>
             <div className="w-11 h-11 rounded-2xl flex items-center justify-center border"
-              style={{ backgroundColor: BRAND.orange + '15', borderColor: BRAND.orange + '40' }}>
-              <FileSpreadsheet className="w-5 h-5" style={{ color: BRAND.orange }} />
+              style={{ backgroundColor: B.orange + '15', borderColor: B.orange + '40' }}>
+              <FileSpreadsheet className="w-5 h-5" style={{ color: B.orange }} />
             </div>
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: BRAND.orange }}>
+              <p className="text-xs font-bold uppercase tracking-widest" style={{ color: B.orange }}>
                 {isEditing ? 'Editar Servicio' : 'Captura Masiva'}
               </p>
               <h2 className="text-xl font-bold text-white">Hoja estilo Excel</h2>
               <p className="text-xs text-white/50 mt-1 hidden sm:block">
-                <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-mono">Ctrl+V</kbd> pega desde Excel ·
-                <kbd className="px-1.5 py-0.5 ml-1 rounded bg-white/10 text-[10px] font-mono">↑↓←→</kbd> navega
+                <kbd className="px-1 py-0.5 rounded bg-white/10 text-[10px] font-mono">Ctrl+V</kbd> desde Excel ·
+                <kbd className="px-1 py-0.5 ml-1 rounded bg-white/10 text-[10px] font-mono">↑↓←→</kbd> navega ·
+                <kbd className="px-1 py-0.5 ml-1 rounded bg-white/10 text-[10px] font-mono">Enter</kbd> edita
               </p>
             </div>
           </div>
           <button onClick={() => addRows(5)}
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border transition-colors hover:bg-white/5"
-            style={{ borderColor: BRAND.blue + '40', backgroundColor: BRAND.blue + '10', color: BRAND.blue }}>
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium border"
+            style={{ borderColor: B.blue + '40', backgroundColor: B.blue + '10', color: B.blue }}>
             <Plus className="w-3.5 h-3.5" /> +5 filas
           </button>
         </div>
-
-        <div className="flex items-center gap-4 sm:gap-6 mt-4 pt-4 border-t flex-wrap"
-          style={{ borderColor: BRAND.border }}>
-          <Stat label="Filas" value={rows.length} />
-          <Stat label="Con datos" value={filasConDatos} color={BRAND.blue} />
-          <Stat label="Total" value={fmtCOP(totalValor)} color={BRAND.orange} />
+        <div className="flex items-center gap-4 sm:gap-6 mt-4 pt-4 border-t flex-wrap" style={{ borderColor: B.border }}>
+          <Stat label="Columnas activas" value={visibleCols.length} />
+          <Stat label="Con datos" value={filasConDatos} color={B.blue} />
+          <Stat label="Total" value={fmtCOP(totalValor)} color={B.orange} />
         </div>
       </div>
 
       <div className="rounded-xl border p-3 flex items-start gap-3"
-        style={{ backgroundColor: BRAND.blue + '08', borderColor: BRAND.blue + '30' }}>
-        <MousePointerClick className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: BRAND.blue }} />
+        style={{ backgroundColor: B.blue + '08', borderColor: B.blue + '30' }}>
+        <MousePointerClick className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: B.blue }} />
         <div className="text-xs text-white/80">
-          <strong style={{ color: BRAND.blue }}>Tip:</strong> Selecciona el rango en Excel → Ctrl+C → clic en la celda destino aquí → Ctrl+V
+          <strong style={{ color: B.blue }}>Tip:</strong> Selecciona el rango en Excel → Ctrl+C → clic en la celda destino → Ctrl+V.
+          La hoja usa las <strong className="text-white">{visibleCols.length} columnas visibles</strong> configuradas por el Admin.
         </div>
       </div>
 
-      <div className="rounded-3xl border overflow-hidden"
-        style={{ backgroundColor: '#0d1220', borderColor: BRAND.border }}>
-        <div className="overflow-auto" style={{ maxHeight: '60vh' }}>
+      <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: '#0d1220', borderColor: B.border }}>
+        <div className="overflow-auto" style={{ maxHeight: '62vh' }}>
           <table className="border-collapse" style={{ minWidth: '100%' }}>
             <thead className="sticky top-0 z-20">
               <tr>
                 <th className="sticky left-0 z-30 px-2 py-2 text-[10px] font-bold text-white/40 border-r border-b text-center"
-                  style={{ backgroundColor: '#0d1220', borderColor: BRAND.border, minWidth: 45 }}>#</th>
-                {COLUMNAS.map((col, i) => (
-                  <th key={col.key}
+                  style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 45 }}>#</th>
+                {visibleCols.map((col, i) => (
+                  <th key={col.id}
                     className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-wider border-r border-b whitespace-nowrap"
                     style={{
-                      backgroundColor: '#161d33', borderColor: BRAND.border,
-                      minWidth: col.w, width: col.w,
-                      color: i === activeCell.col ? BRAND.orange : 'rgba(255,255,255,0.6)'
+                      backgroundColor: '#161d33', borderColor: B.border,
+                      minWidth: col.width, width: col.width,
+                      color: i === activeCell.col ? B.orange : 'rgba(255,255,255,0.6)'
                     }}>
                     {col.label}
+                    {col.required && <span style={{ color: B.orange }}>*</span>}
                   </th>
                 ))}
                 <th className="sticky right-0 z-30 px-2 py-3 border-l border-b text-center"
-                  style={{ backgroundColor: '#0d1220', borderColor: BRAND.border, minWidth: 50 }}>
+                  style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 50 }}>
                   <span className="text-[10px] font-bold text-white/40">·</span>
                 </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, rowIdx) => {
-                const tieneDatos = row.viajeInterno?.toString().trim() || row.coordina?.toString().trim();
+                const tieneDatos = row.viaje_interno?.toString().trim() || row.coordina?.toString().trim();
                 return (
                   <tr key={row.id} className="group">
                     <td className="sticky left-0 z-10 px-2 py-1 border-r border-b text-center text-[11px] font-mono"
                       style={{
                         backgroundColor: rowIdx === activeCell.row ? '#1a2240' : '#0d1220',
-                        borderColor: BRAND.border,
-                        color: rowIdx === activeCell.row ? BRAND.orange : tieneDatos ? BRAND.blue : 'rgba(255,255,255,0.25)',
+                        borderColor: B.border,
+                        color: rowIdx === activeCell.row ? B.orange : tieneDatos ? B.blue : 'rgba(255,255,255,0.25)',
                         fontWeight: rowIdx === activeCell.row ? 700 : 400
                       }}>{rowIdx + 1}</td>
-                    {COLUMNAS.map((col, colIdx) => {
+                    {visibleCols.map((col, colIdx) => {
                       const isActive = rowIdx === activeCell.row && colIdx === activeCell.col;
                       const isEditingThis = editingCell?.row === rowIdx && editingCell?.col === colIdx;
-                      const cellValue = row[col.key] ?? '';
+                      const cellValue = row[col.id] ?? '';
                       return (
-                        <td key={col.key}
+                        <td key={col.id}
                           className="border-r border-b p-0 relative"
                           style={{
-                            borderColor: BRAND.border,
-                            minWidth: col.w, width: col.w,
-                            backgroundColor: isActive ? BRAND.orange + '15' : 'transparent',
-                            outline: isActive ? `2px solid ${BRAND.orange}` : 'none', outlineOffset: '-2px'
+                            borderColor: B.border,
+                            minWidth: col.width, width: col.width,
+                            backgroundColor: isActive ? B.orange + '15' : 'transparent',
+                            outline: isActive ? `2px solid ${B.orange}` : 'none', outlineOffset: '-2px'
                           }}
                           onClick={() => setActiveCell({ row: rowIdx, col: colIdx })}
                           onDoubleClick={() => setEditingCell({ row: rowIdx, col: colIdx })}>
                           {isEditingThis ? (
                             <CellEditor ref={inputRef} col={col} value={cellValue}
-                              onChange={(v) => updateCell(rowIdx, col.key, v)}
-                              onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                              onPaste={(e) => handlePaste(e, rowIdx, colIdx)}
+                              onChange={v => updateCell(rowIdx, col.id, v)}
+                              onKeyDown={e => handleKeyDown(e, rowIdx, colIdx)}
+                              onPaste={e => handlePaste(e, rowIdx, colIdx)}
                               onBlur={() => setEditingCell(null)} />
                           ) : (
                             <CellDisplay col={col} value={cellValue}
-                              onKeyDown={(e) => handleKeyDown(e, rowIdx, colIdx)}
-                              onPaste={(e) => handlePaste(e, rowIdx, colIdx)} />
+                              onKeyDown={e => handleKeyDown(e, rowIdx, colIdx)}
+                              onPaste={e => handlePaste(e, rowIdx, colIdx)} />
                           )}
                         </td>
                       );
                     })}
                     <td className="sticky right-0 z-10 px-1 py-1 border-l border-b text-center"
-                      style={{ backgroundColor: '#0d1220', borderColor: BRAND.border }}>
+                      style={{ backgroundColor: '#0d1220', borderColor: B.border }}>
                       <button onClick={() => deleteRow(rowIdx)}
-                        className="w-7 h-7 rounded-lg flex items-center justify-center opacity-30 group-hover:opacity-100 hover:bg-red-500/20 transition-all"
-                        title="Eliminar fila">
+                        className="w-7 h-7 rounded-lg flex items-center justify-center opacity-30 group-hover:opacity-100 hover:bg-red-500/20 transition-all">
                         <Trash2 className="w-3.5 h-3.5 text-red-400" />
                       </button>
                     </td>
@@ -1567,25 +1751,25 @@ function SpreadsheetView({ initialRows, onSave, onCancel, showToast, isEditing }
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl border-t p-3 sm:p-4"
-        style={{ backgroundColor: 'rgba(10,14,26,0.95)', borderColor: BRAND.border }}>
+        style={{ backgroundColor: 'rgba(10,14,26,0.95)', borderColor: B.border }}>
         <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-xs text-white/50">
-            <Shield className="w-4 h-4" style={{ color: BRAND.blue }} />
-            <span className="hidden sm:inline">Solo se guardarán las <strong className="text-white">{filasConDatos}</strong> filas con datos</span>
+            <Shield className="w-4 h-4" style={{ color: B.blue }} />
+            <span className="hidden sm:inline">Se guardarán las <strong className="text-white">{filasConDatos}</strong> filas con datos</span>
             <span className="sm:hidden">{filasConDatos} listas</span>
           </div>
           <div className="flex gap-2">
             <button onClick={onCancel}
-              className="px-4 py-2.5 rounded-xl text-sm font-medium border text-white/80 hover:bg-white/5 transition-colors"
-              style={{ borderColor: BRAND.borderH }}>
+              className="px-4 py-2.5 rounded-xl text-sm font-medium border text-white/80 hover:bg-white/5"
+              style={{ borderColor: B.borderH }}>
               <X className="w-4 h-4 inline mr-1" /> Cancelar
             </button>
             <button onClick={handleSubmit} disabled={saving || filasConDatos === 0}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02] disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold hover:scale-[1.02] disabled:opacity-50 disabled:scale-100"
               style={{
-                background: filasConDatos > 0 ? `linear-gradient(135deg, ${BRAND.orange}, #ff8a3d)` : '#333',
+                background: filasConDatos > 0 ? `linear-gradient(135deg, ${B.orange}, #ff8a3d)` : '#333',
                 color: filasConDatos > 0 ? 'white' : '#999',
-                boxShadow: filasConDatos > 0 ? `0 8px 24px ${BRAND.orange}40` : 'none'
+                boxShadow: filasConDatos > 0 ? `0 8px 24px ${B.orange}40` : 'none'
               }}>
               {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
               Guardar {filasConDatos > 0 && `(${filasConDatos})`}
@@ -1604,26 +1788,32 @@ const Stat = ({ label, value, color = '#fff' }) => (
   </div>
 );
 
-const CellDisplay = ({ col, value, onKeyDown, onPaste }) => {
-  let displayValue = value;
-  if (col.type === 'number' && value !== '' && !isNaN(value)) {
-    displayValue = '$' + new Intl.NumberFormat('es-CO').format(Number(value));
-  } else if (col.type === 'date' && value) {
-    try {
-      const d = new Date(value);
-      if (!isNaN(d)) displayValue = d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' });
-    } catch { }
-  }
+// Colores de estado para celdas
+const CELL_COLORS = {
+  'EN CURSO': '#f59e0b', 'FACTURADO': '#3b9cf5', 'TERMINADO': '#10b981', 'CUMPLIDO': '#10b981', 'CANCELADO': '#ef4444'
+};
 
+const CellDisplay = ({ col, value, onKeyDown, onPaste }) => {
+  let displayValue = value?.toString() || '';
   let textColor = 'rgba(255,255,255,0.9)';
   let extraClass = '';
-  if (col.key === 'estado' && value) {
-    const p = { 'EN CURSO': '#f59e0b', 'FACTURADO': BRAND.blue, 'TERMINADO': '#10b981', 'CUMPLIDO': '#10b981', 'CANCELADO': '#ef4444' };
-    textColor = p[value] || '#fff';
+
+  if (col.type === 'number' && value !== '' && value !== null && value !== undefined && !isNaN(value)) {
+    displayValue = fmtCOP(value);
+    textColor = B.orange;
+    extraClass = 'font-mono';
+  } else if (col.type === 'date' && value) {
+    try { const d = new Date(value); if (!isNaN(d)) displayValue = d.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: '2-digit' }); }
+    catch { }
+  } else if (col.id === 'estado' && CELL_COLORS[value]) {
+    textColor = CELL_COLORS[value];
     extraClass = 'font-bold';
-  } else if (col.key === 'placaRecurso' && value) { textColor = BRAND.blue; extraClass = 'font-mono font-bold'; }
-  else if (col.key === 'viajeInterno' && value) extraClass = 'font-bold';
-  else if (col.type === 'number' && value) { textColor = BRAND.orange; extraClass = 'font-mono'; }
+  } else if (col.id === 'placa_recurso' && value) {
+    textColor = B.blue;
+    extraClass = 'font-mono font-bold';
+  } else if (col.id === 'viaje_interno' && value) {
+    extraClass = 'font-bold';
+  }
 
   return (
     <div tabIndex={0} onKeyDown={onKeyDown} onPaste={onPaste}
@@ -1637,29 +1827,29 @@ const CellDisplay = ({ col, value, onKeyDown, onPaste }) => {
 const CellEditor = React.forwardRef(({ col, value, onChange, onKeyDown, onPaste, onBlur }, ref) => {
   const baseStyle = {
     width: '100%', minHeight: '34px', padding: '8px 12px',
-    backgroundColor: '#1a2240', border: 'none', outline: `2px solid ${BRAND.orange}`, outlineOffset: '-2px',
+    backgroundColor: '#1a2240', border: 'none', outline: `2px solid ${B.orange}`, outlineOffset: '-2px',
     color: '#fff', fontSize: '14px', fontFamily: 'inherit'
   };
   if (col.type === 'select') {
     return (
-      <select ref={ref} value={value || ''} onChange={(e) => onChange(e.target.value)}
+      <select ref={ref} value={value || ''} onChange={e => onChange(e.target.value)}
         onKeyDown={onKeyDown} onBlur={onBlur} onPaste={onPaste} style={{ ...baseStyle, cursor: 'pointer' }}>
         <option value=""></option>
-        {col.options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+        {(col.options || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
       </select>
     );
   }
   if (col.type === 'date') {
     return (
-      <input ref={ref} type="date" value={value ? value.slice(0, 10) : ''}
-        onChange={(e) => onChange(e.target.value)}
+      <input ref={ref} type="date" value={value ? value.toString().slice(0, 10) : ''}
+        onChange={e => onChange(e.target.value)}
         onKeyDown={onKeyDown} onBlur={onBlur} onPaste={onPaste} style={baseStyle} />
     );
   }
   return (
     <input ref={ref} type={col.type === 'number' ? 'number' : 'text'}
       value={value === null || value === undefined ? '' : value}
-      onChange={(e) => onChange(col.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
+      onChange={e => onChange(col.type === 'number' ? (e.target.value === '' ? '' : Number(e.target.value)) : e.target.value)}
       onKeyDown={onKeyDown} onBlur={onBlur} onPaste={onPaste} style={baseStyle} />
   );
 });
@@ -1669,21 +1859,17 @@ const CellEditor = React.forwardRef(({ col, value, onChange, onKeyDown, onPaste,
 // ============================================================
 function UsuariosView({ showToast, session }) {
   const [usuarios, setUsuarios] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const cargar = () => {
-    setLoading(true);
-    setUsuarios([...USUARIOS_DEMO, ...getUsuarios()]);
-    setLoading(false);
+    setUsuarios([...USUARIOS_DEMO, ...(ls.get('alotrans:usuarios') || [])]);
   };
 
   useEffect(() => { cargar(); }, []);
 
   const handleDelete = (username) => {
-    const registrados = getUsuarios();
-    const actualizados = registrados.filter(u => u.username !== username);
-    if (saveUsuarios(actualizados)) {
+    const registrados = (ls.get('alotrans:usuarios') || []).filter(u => u.username !== username);
+    if (ls.set('alotrans:usuarios', registrados)) {
       showToast(`Usuario "${username}" eliminado`, 'success');
       setConfirmDelete(null);
       cargar();
@@ -1696,97 +1882,80 @@ function UsuariosView({ showToast, session }) {
     <div className="space-y-5 animate-fade-up">
       <div>
         <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Users className="w-6 h-6" style={{ color: BRAND.orange }} />
-          Gestión de Usuarios
+          <Users className="w-6 h-6" style={{ color: B.orange }} /> Gestión de Usuarios
         </h2>
         <p className="text-sm text-white/50 mt-1">Administra el acceso al sistema</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <MiniKpi icon={Users} label="Total" value={usuarios.length} color={BRAND.orange} />
-        <MiniKpi icon={UserPlus} label="Registrados" value={registradosCount} color={BRAND.blue} />
+        <MiniKpi icon={Users} label="Total" value={usuarios.length} color={B.orange} />
+        <MiniKpi icon={UserPlus} label="Registrados" value={registradosCount} color={B.blue} />
         <MiniKpi icon={Shield} label="Admins" value={usuarios.filter(u => u.rol === 'ADMIN').length} color="#10b981" />
       </div>
 
       <div className="rounded-xl border p-4 flex items-start gap-3"
-        style={{ backgroundColor: BRAND.blue + '08', borderColor: BRAND.blue + '30' }}>
-        <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: BRAND.blue }} />
+        style={{ backgroundColor: B.blue + '08', borderColor: B.blue + '30' }}>
+        <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: B.blue }} />
         <div className="text-xs text-white/70">
-          Los usuarios se registran desde la pantalla de login. Los usuarios <strong>demo</strong> son permanentes.
+          Los usuarios se registran desde la pantalla de login. Los usuarios <strong>demo</strong> son permanentes y no pueden eliminarse.
         </div>
       </div>
 
-      <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: BRAND.card, borderColor: BRAND.border }}>
-        {loading ? (
-          <div className="p-6 space-y-3">
-            {[...Array(3)].map((_, i) => (
-              <div key={i} className="h-16 rounded-2xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.02)' }} />
-            ))}
-          </div>
-        ) : (
-          <div className="p-3 space-y-2">
-            {usuarios.map(u => (
-              <div key={u.username} className="rounded-2xl border p-4 flex items-center justify-between gap-3"
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.02)',
-                  borderColor: u.username === session.username ? BRAND.orange + '40' : BRAND.border
-                }}>
-                <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border"
-                    style={{
-                      backgroundColor: (u.rol === 'ADMIN' ? BRAND.orange : BRAND.blue) + '15',
-                      borderColor: (u.rol === 'ADMIN' ? BRAND.orange : BRAND.blue) + '40'
-                    }}>
-                    {u.rol === 'ADMIN' ?
-                      <Shield className="w-5 h-5" style={{ color: BRAND.orange }} /> :
-                      <UserCog className="w-5 h-5" style={{ color: BRAND.blue }} />}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-bold text-white">{u.nombre}</p>
-                      {u.username === session.username && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border font-bold"
-                          style={{ color: BRAND.orange, borderColor: BRAND.orange + '40', backgroundColor: BRAND.orange + '15' }}>
-                          TÚ
-                        </span>
-                      )}
-                      {u.esDemo && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full border font-bold text-white/60"
-                          style={{ borderColor: BRAND.borderH, backgroundColor: 'rgba(255,255,255,0.03)' }}>
-                          DEMO
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-white/50">@{u.username}</p>
-                  </div>
+      <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: B.card, borderColor: B.border }}>
+        <div className="p-3 space-y-2">
+          {usuarios.map(u => (
+            <div key={u.username} className="rounded-2xl border p-4 flex items-center justify-between gap-3"
+              style={{
+                backgroundColor: 'rgba(255,255,255,0.02)',
+                borderColor: u.username === session.username ? B.orange + '40' : B.border
+              }}>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 border"
+                  style={{
+                    backgroundColor: (u.rol === 'ADMIN' ? B.orange : B.blue) + '15',
+                    borderColor: (u.rol === 'ADMIN' ? B.orange : B.blue) + '40'
+                  }}>
+                  {u.rol === 'ADMIN' ? <Shield className="w-5 h-5" style={{ color: B.orange }} /> : <UserCog className="w-5 h-5" style={{ color: B.blue }} />}
                 </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border"
-                    style={{
-                      color: u.rol === 'ADMIN' ? BRAND.orange : BRAND.blue,
-                      backgroundColor: (u.rol === 'ADMIN' ? BRAND.orange : BRAND.blue) + '15',
-                      borderColor: (u.rol === 'ADMIN' ? BRAND.orange : BRAND.blue) + '40'
-                    }}>
-                    {u.rol}
-                  </span>
-                  {!u.esDemo && u.username !== session.username && (
-                    <button onClick={() => setConfirmDelete(u.username)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
-                      style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}
-                      title="Eliminar usuario">
-                      <Trash2 className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />
-                    </button>
-                  )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-bold text-white">{u.nombre}</p>
+                    {u.username === session.username && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-bold"
+                        style={{ color: B.orange, borderColor: B.orange + '40', backgroundColor: B.orange + '15' }}>TÚ</span>
+                    )}
+                    {u.esDemo && (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border font-bold text-white/60"
+                        style={{ borderColor: B.borderH, backgroundColor: 'rgba(255,255,255,0.03)' }}>DEMO</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-white/50">@{u.username}</p>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border"
+                  style={{
+                    color: u.rol === 'ADMIN' ? B.orange : B.blue,
+                    backgroundColor: (u.rol === 'ADMIN' ? B.orange : B.blue) + '15',
+                    borderColor: (u.rol === 'ADMIN' ? B.orange : B.blue) + '40'
+                  }}>
+                  {u.rol}
+                </span>
+                {!u.esDemo && u.username !== session.username && (
+                  <button onClick={() => setConfirmDelete(u.username)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
+                    style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                    <Trash2 className="w-3.5 h-3.5" style={{ color: '#ef4444' }} />
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       {confirmDelete && (
-        <ConfirmModal title={`¿Eliminar "${confirmDelete}"?`}
-          message="El usuario ya no podrá iniciar sesión"
+        <ConfirmModal title={`¿Eliminar "${confirmDelete}"?`} message="El usuario ya no podrá acceder"
           color="#ef4444" icon={AlertCircle}
           onCancel={() => setConfirmDelete(null)} onConfirm={() => handleDelete(confirmDelete)}
           confirmLabel="Eliminar" />
