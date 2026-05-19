@@ -1,6 +1,6 @@
 # 🚛 AloTrans Carga · Panel Maestro de Operaciones v2.0
 
-Sistema de gestión logística para **AloTrans Carga**, cliente del **Grupo UMA**.
+Sistema de gestión logística para **AloTrans Carga**, cliente del **Grupo Alotrans Carga**.
 
 ![React](https://img.shields.io/badge/React-18.3-blue)
 ![Vite](https://img.shields.io/badge/Vite-5.3-purple)
