@@ -79,20 +79,6 @@ const Logo = ({ size = 'md' }) => {
     />
   );
 };
-  const sizes = { xs: [100,32], sm: [140,44], md: [180,56], lg: [220,70], xl: [280,90] };
-  const [w, h] = sizes[size];
-  return (
-    <svg viewBox="0 0 380 110" width={w} height={h} xmlns="http://www.w3.org/2000/svg" style={{ display: 'block' }}>
-      <text x="0" y="72" fontFamily="'Arial Black','Helvetica Neue',sans-serif" fontSize="78" fontWeight="900" fill="#5b8bd1">Al</text>
-      <circle cx="105" cy="46" r="26" fill="#5b8bd1" />
-      <circle cx="105" cy="46" r="13" fill={B.bg} />
-      <path d="M105 28 L96 50 L103 50 L99 64 L114 42 L107 42 L111 28 Z" fill="#fff" stroke="#5b8bd1" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M5 88 Q50 108 130 78" stroke={B.orange} strokeWidth="11" fill="none" strokeLinecap="round" />
-      <text x="142" y="72" fontFamily="'Arial','Helvetica Neue',sans-serif" fontSize="72" fontWeight="400" fill="#3b9cf5">Trans</text>
-      <text x="115" y="105" fontFamily="'Arial',sans-serif" fontSize="20" fontWeight="700" fontStyle="italic" fill={B.orange} letterSpacing="9">c a r g a</text>
-    </svg>
-  );
-};
 
 // ============================================================
 //  TOAST
