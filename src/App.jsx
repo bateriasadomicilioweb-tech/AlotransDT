@@ -70,6 +70,15 @@ const ls = {
 //  LOGO
 // ============================================================
 const Logo = ({ size = 'md' }) => {
+  const heights = { xs: 28, sm: 36, md: 44, lg: 56, xl: 72 };
+  return (
+    <img
+      src="/logo.png"
+      alt="AloTrans Carga"
+      style={{ height: heights[size], width: 'auto', display: 'block' }}
+    />
+  );
+};
   const sizes = { xs: [100,32], sm: [140,44], md: [180,56], lg: [220,70], xl: [280,90] };
   const [w, h] = sizes[size];
   return (
