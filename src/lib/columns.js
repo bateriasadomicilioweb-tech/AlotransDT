@@ -2,7 +2,17 @@
 // Definición completa de las 64 columnas del Excel maestro de AloTrans
 // Los keys usan snake_case para coincidir exactamente con Supabase/PostgreSQL
 
-export const COLUMN_TYPES = ['text', 'number', 'date', 'select'];
+export const COLUMN_TYPES = [
+  'text',       // Texto libre
+  'money_cop',  // Valor en pesos colombianos: $122.628.800
+  'decimal',    // Número con decimales: 1.274,50
+  'number',     // Número entero: 4
+  'km',         // Kilómetros: 602 km
+  'hours',      // Horas: 7,10 h
+  'days',       // Días: 3 días
+  'date',       // Fecha: 15 mar. 2026
+  'select'      // Lista desplegable
+];
 
 export const ESTADOS_OPTIONS       = ['EN CURSO', 'FACTURADO', 'TERMINADO', 'CUMPLIDO', 'CANCELADO'];
 export const ESTADOS_MANIFIESTO    = ['PENDIENTE', 'CUMPLIDO', 'EN TRANSITO', 'ANULADO'];
