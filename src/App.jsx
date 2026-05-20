@@ -1314,7 +1314,6 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
   const ESTADOS_ALL  = ['EN CURSO', 'FACTURADO', 'TERMINADO', 'CUMPLIDO', 'CANCELADO'];
   const CLIENTES_ALL = ['GRUPO UMA', 'AUTECO SAS', 'DONG FENG', 'OTROS'];
 
-  // ── Filtrado: busca en TODAS las columnas visibles
   const filtrados = useMemo(() => {
     return servicios.filter(s => {
       const q = query.toLowerCase().trim();
@@ -1327,45 +1326,28 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
     });
   }, [servicios, query, filterEstado, filterCliente, visibleCols]);
 
-// ── Formatear celda según tipo de columna
-const fmtCell = (col, val) => {
+  const fmtCell = (col, val) => {
     if (val === null || val === undefined || val === '') return '';
     const num = Number(val);
-
     switch (col.type) {
       case 'money_cop':
         if (isNaN(num)) return String(val);
-        return '$' + new Intl.NumberFormat('es-CO', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0
-        }).format(num);
+        return '$' + new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(num);
       case 'decimal':
         if (isNaN(num)) return String(val);
-        return new Intl.NumberFormat('es-CO', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        }).format(num);
+        return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
       case 'number':
         if (isNaN(num)) return String(val);
-        return new Intl.NumberFormat('es-CO', {
-          maximumFractionDigits: 0
-        }).format(num);
+        return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num);
       case 'km':
         if (isNaN(num)) return String(val);
-        return new Intl.NumberFormat('es-CO', {
-          maximumFractionDigits: 0
-        }).format(num) + ' km';
+        return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num) + ' km';
       case 'hours':
         if (isNaN(num)) return String(val);
-        return new Intl.NumberFormat('es-CO', {
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 2
-        }).format(num) + ' h';
+        return new Intl.NumberFormat('es-CO', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(num) + ' h';
       case 'days':
         if (isNaN(num)) return String(val);
-        return new Intl.NumberFormat('es-CO', {
-          maximumFractionDigits: 1
-        }).format(num) + ' días';
+        return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 1 }).format(num) + ' días';
       case 'date':
         return fmtDate(val);
       default:
@@ -1373,164 +1355,59 @@ const fmtCell = (col, val) => {
     }
   };
 
-    // Columnas numéricas que son DINERO (COP)
-    const sonDinero = [
-      'valor_ruta', 'valor_remesa', 'valor_ok',
-      'neto_ok', 'valor_total'
-    ];
-
-    // Columnas numéricas que son CANTIDADES (sin signo $)
-    const sonCantidad = [
-      'kms_origen_destino', 'km_reales', 'num_vehiculos',
-      'dias_entrega', 'dias_entrega_habil',
-      'horas_entrega', 'horas_entrega_habiles',
-      'dig', 'doc', 'tm'
-    ];
-
-    if (col.type === 'number') {
-      const num = Number(val);
-      if (isNaN(num)) return String(val);
-
-      if (sonDinero.includes(col.id)) {
-        // Formato COP con dos decimales si los tiene
-        return num % 1 === 0
-          ? '$' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num)
-          : '$' + new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
-      }
-
-      if (sonCantidad.includes(col.id)) {
-        // Número simple, sin símbolo de moneda
-        return num % 1 === 0
-          ? new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num)
-          : new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
-      }
-
-      // Cualquier otro número: sin símbolo
-      return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(num);
-    }
-
-    if (col.type === 'date') return fmtDate(val);
-
-    return String(val);
-  };
-
-  // ── Estilo de texto según columna
-const cellStyle = (col, val) => {
+  const cellStyle = (col, val) => {
     if (!val && val !== 0) return { color: 'rgba(255,255,255,0.2)' };
-
     if (col.id === 'estado') {
-      const colores = {
-        'EN CURSO':  '#f59e0b',
-        'FACTURADO': '#3b9cf5',
-        'TERMINADO': '#10b981',
-        'CUMPLIDO':  '#10b981',
-        'CANCELADO': '#ef4444'
-      };
+      const colores = { 'EN CURSO': '#f59e0b', 'FACTURADO': '#3b9cf5', 'TERMINADO': '#10b981', 'CUMPLIDO': '#10b981', 'CANCELADO': '#ef4444' };
       return { color: colores[val] || 'rgba(255,255,255,0.8)', fontWeight: 700 };
     }
-
-    if (col.id === 'placa_recurso') {
-      return { color: B.blue, fontFamily: 'monospace', fontWeight: 700 };
-    }
-
-    if (col.id === 'viaje_interno') {
-      return { color: 'white', fontWeight: 700 };
-    }
-
-    // Dinero → naranja con monoespaciado
-    if (col.type === 'money_cop') {
-      return { color: B.orange, fontFamily: 'monospace' };
-    }
-
-    // Decimales → naranja suave
-    if (col.type === 'decimal') {
-      return { color: '#ffaa55', fontFamily: 'monospace' };
-    }
-
-    // Km, horas, días → azul claro
-    if (['km', 'hours', 'days'].includes(col.type)) {
-      return { color: '#7dd3fc', fontFamily: 'monospace' };
-    }
-
-    // Números enteros → blanco
-    if (col.type === 'number') {
-      return { color: 'rgba(255,255,255,0.9)', fontFamily: 'monospace' };
-    }
-
+    if (col.id === 'placa_recurso') return { color: B.blue, fontFamily: 'monospace', fontWeight: 700 };
+    if (col.id === 'viaje_interno') return { color: 'white', fontWeight: 700 };
+    if (col.type === 'money_cop')   return { color: B.orange, fontFamily: 'monospace' };
+    if (col.type === 'decimal')     return { color: '#ffaa55', fontFamily: 'monospace' };
+    if (['km','hours','days'].includes(col.type)) return { color: '#7dd3fc', fontFamily: 'monospace' };
+    if (col.type === 'number')      return { color: 'rgba(255,255,255,0.9)', fontFamily: 'monospace' };
     return { color: 'rgba(255,255,255,0.75)' };
   };
 
-  // ════════════════════════════════════════════
-  // EXPORTAR CSV
-  // ════════════════════════════════════════════
   const exportCSV = () => {
-    // Cabecera con los nombres de columnas visibles
     const headers = visibleCols.map(c => `"${c.label}"`).join(',');
-
-    // Filas de datos
     const rows = filtrados.map(s =>
       visibleCols.map(col => {
         const val = s[col.id] ?? '';
-        const txt = col.type === 'date'
-          ? fmtDate(val)
-          : String(val).replace(/"/g, '""');
+        const txt = col.type === 'date' ? fmtDate(val) : String(val).replace(/"/g, '""');
         return `"${txt}"`;
       }).join(',')
     );
-
-    // BOM al inicio para que Excel en español abra bien las tildes y ñ
     const csv  = '\uFEFF' + [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `alotrans-servicios-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.href = url;
+    a.download = `alotrans-servicios-${new Date().toISOString().slice(0,10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     setShowExport(false);
   };
 
-  // ════════════════════════════════════════════
-  // EXPORTAR EXCEL (.xls con formato XML)
-  // Funciona sin instalar librerías externas
-  // ════════════════════════════════════════════
   const exportXLSX = () => {
-    const escape = s =>
-      String(s ?? '')
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
-
-    // Fila de encabezados con fondo naranja y texto blanco
-    const headerCells = visibleCols
-      .map(c => `<Cell ss:StyleID="h"><Data ss:Type="String">${escape(c.label)}</Data></Cell>`)
-      .join('');
-
-    // Filas de datos
+    const escape = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    const headerCells = visibleCols.map(c => `<Cell ss:StyleID="h"><Data ss:Type="String">${escape(c.label)}</Data></Cell>`).join('');
     const dataRows = filtrados.map(s => {
       const cells = visibleCols.map(col => {
-        const raw  = s[col.id] ?? '';
-        const esNum = col.type === 'number' && raw !== '' && !isNaN(raw);
-        const val  = esNum ? Number(raw) : escape(col.type === 'date' ? fmtDate(raw) : raw);
-        const tipo = esNum ? 'Number' : 'String';
-        return `<Cell ss:StyleID="d"><Data ss:Type="${tipo}">${val}</Data></Cell>`;
+        const raw   = s[col.id] ?? '';
+        const esNum = ['money_cop','decimal','number','km','hours','days'].includes(col.type) && raw !== '' && !isNaN(Number(raw));
+        const val   = esNum ? Number(raw) : escape(col.type === 'date' ? fmtDate(raw) : raw);
+        return `<Cell ss:StyleID="d"><Data ss:Type="${esNum ? 'Number' : 'String'}">${val}</Data></Cell>`;
       }).join('');
       return `<Row>${cells}</Row>`;
     }).join('\n');
-
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
-  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
   <Styles>
-    <Style ss:ID="h">
-      <Font ss:Bold="1" ss:Color="#FFFFFF"/>
-      <Interior ss:Color="#FF6A00" ss:Pattern="Solid"/>
-    </Style>
-    <Style ss:ID="d">
-      <Alignment ss:WrapText="0"/>
-    </Style>
+    <Style ss:ID="h"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#FF6A00" ss:Pattern="Solid"/></Style>
+    <Style ss:ID="d"><Alignment ss:WrapText="0"/></Style>
   </Styles>
   <Worksheet ss:Name="Servicios AloTrans">
     <Table>
@@ -1539,12 +1416,11 @@ const cellStyle = (col, val) => {
     </Table>
   </Worksheet>
 </Workbook>`;
-
     const blob = new Blob([xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `alotrans-servicios-${new Date().toISOString().slice(0, 10)}.xls`;
+    a.href = url;
+    a.download = `alotrans-servicios-${new Date().toISOString().slice(0,10)}.xls`;
     a.click();
     URL.revokeObjectURL(url);
     setShowExport(false);
@@ -1552,114 +1428,70 @@ const cellStyle = (col, val) => {
 
   return (
     <div className="space-y-5 animate-fade-up">
-
-      {/* ── Título + botones */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold text-white">Operaciones</h2>
           <p className="text-sm text-white/50 mt-1">
-            {filtrados.length} de {servicios.length} servicios
-            · {visibleCols.length} columnas activas
+            {filtrados.length} de {servicios.length} servicios · {visibleCols.length} columnas activas
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-
-          {/* Botón Exportar */}
           {puede('exportar') && filtrados.length > 0 && (
             <div className="relative">
-              <button
-                onClick={() => setShowExport(!showExport)}
+              <button onClick={() => setShowExport(!showExport)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border transition-all hover:bg-white/5"
-                style={{ borderColor: B.borderH, color: '#10b981' }}
-              >
-                <Download className="w-4 h-4" />
-                Exportar
-                <ChevronDown className="w-3.5 h-3.5" />
+                style={{ borderColor: B.borderH, color: '#10b981' }}>
+                <Download className="w-4 h-4" /> Exportar <ChevronDown className="w-3.5 h-3.5" />
               </button>
-
               {showExport && (
                 <>
-                  {/* Clic fuera cierra el menú */}
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setShowExport(false)}
-                  />
-                  <div
-                    className="absolute right-0 top-full mt-1 w-48 rounded-2xl border backdrop-blur-xl p-1.5 z-40"
-                    style={{ backgroundColor: 'rgba(17,23,41,0.97)', borderColor: B.borderH }}
-                  >
-                    <button
-                      onClick={exportCSV}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-white/5 transition-colors text-left"
-                      style={{ color: '#10b981' }}
-                    >
-                      <Download className="w-4 h-4" />
-                      CSV (.csv)
+                  <div className="fixed inset-0 z-30" onClick={() => setShowExport(false)} />
+                  <div className="absolute right-0 top-full mt-1 w-48 rounded-2xl border backdrop-blur-xl p-1.5 z-40"
+                    style={{ backgroundColor: 'rgba(17,23,41,0.97)', borderColor: B.borderH }}>
+                    <button onClick={exportCSV}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-white/5 text-left"
+                      style={{ color: '#10b981' }}>
+                      <Download className="w-4 h-4" /> CSV (.csv)
                     </button>
-                    <button
-                      onClick={exportXLSX}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-white/5 transition-colors text-left"
-                      style={{ color: '#3b9cf5' }}
-                    >
-                      <FileSpreadsheet className="w-4 h-4" />
-                      Excel (.xls)
+                    <button onClick={exportXLSX}
+                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm hover:bg-white/5 text-left"
+                      style={{ color: '#3b9cf5' }}>
+                      <FileSpreadsheet className="w-4 h-4" /> Excel (.xls)
                     </button>
                   </div>
                 </>
               )}
             </div>
           )}
-
-          {/* Botón Nuevo Servicio */}
           {(puede('crear') || puede('editar')) && (
-            <button
-              onClick={onNewBulk}
+            <button onClick={onNewBulk}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
-              style={{
-                background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`,
-                color: 'white',
-                boxShadow: `0 8px 24px ${B.orange}40`
-              }}
-            >
+              style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
               <Plus className="w-4 h-4" /> Nuevo Servicio
             </button>
           )}
         </div>
       </div>
 
-      {/* ── Filtros */}
-      <div
-        className="rounded-3xl border p-4 sm:p-5"
-        style={{ backgroundColor: B.card, borderColor: B.border }}
-      >
+      <div className="rounded-3xl border p-4 sm:p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
         <div className="flex flex-col lg:flex-row gap-3">
           <div className="relative flex-1">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
-            <input
-              type="text"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
+            <input type="text" value={query} onChange={e => setQuery(e.target.value)}
               placeholder="Buscar en todas las columnas visibles..."
               className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
-              style={{ borderColor: B.borderH }}
-            />
+              style={{ borderColor: B.borderH }} />
           </div>
           <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-            <select
-              value={filterEstado}
-              onChange={e => setFilterEstado(e.target.value)}
+            <select value={filterEstado} onChange={e => setFilterEstado(e.target.value)}
               className="flex-1 px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
-              style={{ borderColor: B.borderH }}
-            >
+              style={{ borderColor: B.borderH }}>
               <option value="TODOS">Todos los estados</option>
               {ESTADOS_ALL.map(e => <option key={e} value={e}>{e}</option>)}
             </select>
-            <select
-              value={filterCliente}
-              onChange={e => setFilterCliente(e.target.value)}
+            <select value={filterCliente} onChange={e => setFilterCliente(e.target.value)}
               className="flex-1 px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
-              style={{ borderColor: B.borderH }}
-            >
+              style={{ borderColor: B.borderH }}>
               <option value="TODOS">Todos los clientes</option>
               {CLIENTES_ALL.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -1667,154 +1499,85 @@ const cellStyle = (col, val) => {
         </div>
       </div>
 
-      {/* ── Tabla principal */}
-      <div
-        className="rounded-3xl border overflow-hidden"
-        style={{ backgroundColor: B.card, borderColor: B.border }}
-      >
+      <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: B.card, borderColor: B.border }}>
         {loading ? (
           <div className="p-6 space-y-3">
             {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                className="h-14 rounded-2xl animate-pulse"
-                style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.08}s` }}
-              />
+              <div key={i} className="h-14 rounded-2xl animate-pulse"
+                style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.08}s` }} />
             ))}
           </div>
-
         ) : servicios.length === 0 ? (
           <div className="p-12 sm:p-16 text-center">
             <Package className="w-12 h-12 text-white/20 mx-auto mb-3" />
             <p className="text-white font-bold mb-1">Sin servicios registrados</p>
             <p className="text-white/50 text-sm mb-5">Usa "Nuevo Servicio" para empezar</p>
             {puede('crear') && (
-              <button
-                onClick={onNewBulk}
+              <button onClick={onNewBulk}
                 className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold hover:scale-[1.02]"
-                style={{
-                  background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`,
-                  color: 'white',
-                  boxShadow: `0 8px 24px ${B.orange}40`
-                }}
-              >
+                style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
                 <FileSpreadsheet className="w-4 h-4" /> Captura masiva
               </button>
             )}
           </div>
-
         ) : filtrados.length === 0 ? (
           <div className="p-10 text-center">
             <Search className="w-10 h-10 text-white/20 mx-auto mb-3" />
-            <p className="text-white/50 text-sm">Sin resultados para la búsqueda</p>
+            <p className="text-white/50 text-sm">Sin resultados</p>
           </div>
-
         ) : (
           <>
-            {/* Tabla con scroll horizontal + vertical */}
-            <div
-              className="overflow-x-auto"
-              style={{ maxHeight: '68vh', overflowY: 'auto' }}
-            >
+            <div className="overflow-x-auto" style={{ maxHeight: '68vh', overflowY: 'auto' }}>
               <table className="border-collapse" style={{ minWidth: '100%' }}>
-
-                {/* Encabezados fijos arriba */}
                 <thead className="sticky top-0 z-10">
                   <tr style={{ backgroundColor: '#0d1220' }}>
-
-                    {/* Columna Acciones — fija a la izquierda */}
-                    <th
-                      className="sticky left-0 z-20 px-3 py-3 border-r border-b text-[10px] font-bold uppercase tracking-wider text-white/40 text-center whitespace-nowrap"
-                      style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 76, width: 76 }}
-                    >
+                    <th className="sticky left-0 z-20 px-3 py-3 border-r border-b text-[10px] font-bold uppercase tracking-wider text-white/40 text-center whitespace-nowrap"
+                      style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 76, width: 76 }}>
                       Acción
                     </th>
-
-                    {/* Una columna por cada columna visible */}
                     {visibleCols.map(col => (
-                      <th
-                        key={col.id}
+                      <th key={col.id}
                         className="px-3 py-3 border-r border-b text-left text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{
-                          backgroundColor: '#161d33',
-                          borderColor: B.border,
-                          minWidth: col.width,
-                          width: col.width,
-                          color: 'rgba(255,255,255,0.6)'
-                        }}
-                      >
+                        style={{ backgroundColor: '#161d33', borderColor: B.border, minWidth: col.width, width: col.width, color: 'rgba(255,255,255,0.6)' }}>
                         {col.label}
                       </th>
                     ))}
                   </tr>
                 </thead>
-
                 <tbody>
                   {filtrados.map((s, rowIdx) => (
-                    <tr
-                      key={s.id}
-                      className="hover:bg-white/[0.025] transition-colors"
-                      style={{
-                        borderBottom: `1px solid ${B.border}`,
-                        backgroundColor: rowIdx % 2 === 0
-                          ? 'transparent'
-                          : 'rgba(255,255,255,0.012)'
-                      }}
-                    >
-                      {/* Botones Editar / Eliminar — fijos a la izquierda */}
-                      <td
-                        className="sticky left-0 z-10 px-2 py-2 border-r border-b text-center"
-                        style={{
-                          backgroundColor: rowIdx % 2 === 0 ? B.card : 'rgba(22,29,51,0.98)',
-                          borderColor: B.border
-                        }}
-                      >
+                    <tr key={s.id} className="hover:bg-white/[0.025] transition-colors"
+                      style={{ borderBottom: `1px solid ${B.border}`, backgroundColor: rowIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)' }}>
+                      <td className="sticky left-0 z-10 px-2 py-2 border-r border-b text-center"
+                        style={{ backgroundColor: rowIdx % 2 === 0 ? B.card : 'rgba(22,29,51,0.98)', borderColor: B.border }}>
                         <div className="flex items-center justify-center gap-1">
                           {puede('editar') && (
-                            <button
-                              onClick={() => onEdit(s)}
-                              title="Editar"
+                            <button onClick={() => onEdit(s)} title="Editar"
                               className="w-7 h-7 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
-                              style={{ backgroundColor: B.blue + '15', borderColor: B.blue + '40' }}
-                            >
+                              style={{ backgroundColor: B.blue + '15', borderColor: B.blue + '40' }}>
                               <Edit3 className="w-3 h-3" style={{ color: B.blue }} />
                             </button>
                           )}
                           {puede('eliminar') && (
-                            <button
-                              onClick={() => onDelete(s.id)}
-                              title="Eliminar"
+                            <button onClick={() => onDelete(s.id)} title="Eliminar"
                               className="w-7 h-7 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
-                              style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}
-                            >
+                              style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}>
                               <Trash2 className="w-3 h-3" style={{ color: '#ef4444' }} />
                             </button>
                           )}
                         </div>
                       </td>
-
-                      {/* Celdas de datos dinámicas */}
                       {visibleCols.map(col => {
                         const val     = s[col.id];
                         const display = fmtCell(col, val);
                         const style   = cellStyle(col, val);
                         return (
-                          <td
-                            key={col.id}
-                            title={String(val ?? '')}
+                          <td key={col.id} title={String(val ?? '')}
                             className="px-3 py-2.5 border-r border-b text-sm whitespace-nowrap"
-                            style={{
-                              borderColor: B.border,
-                              minWidth: col.width,
-                              maxWidth: col.width,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              ...style
-                            }}
-                          >
+                            style={{ borderColor: B.border, minWidth: col.width, maxWidth: col.width, overflow: 'hidden', textOverflow: 'ellipsis', ...style }}>
                             {col.id === 'estado' && val
                               ? <StatusPill status={val} size="sm" />
-                              : display || <span className="text-white/20">—</span>
+                              : (display || <span className="text-white/20">—</span>)
                             }
                           </td>
                         );
@@ -1824,22 +1587,13 @@ const cellStyle = (col, val) => {
                 </tbody>
               </table>
             </div>
-
-            {/* Pie de la tabla */}
-            <div
-              className="px-5 py-3 border-t text-xs text-white/40 flex items-center justify-between flex-wrap gap-2"
-              style={{ borderColor: B.border }}
-            >
+            <div className="px-5 py-3 border-t text-xs text-white/40 flex items-center justify-between flex-wrap gap-2"
+              style={{ borderColor: B.border }}>
               <span>
-                Mostrando{' '}
-                <strong className="text-white">{filtrados.length}</strong>{' '}
-                de {servicios.length} servicios ·{' '}
-                <strong className="text-white">{visibleCols.length}</strong>{' '}
-                columnas
+                Mostrando <strong className="text-white">{filtrados.length}</strong> de {servicios.length} servicios
+                · <strong className="text-white">{visibleCols.length}</strong> columnas
               </span>
-              <span className="flex items-center gap-1.5">
-                <Database className="w-3 h-3" /> Datos persistidos
-              </span>
+              <span className="flex items-center gap-1.5"><Database className="w-3 h-3" /> Datos persistidos</span>
             </div>
           </>
         )}
