@@ -1339,42 +1339,35 @@ const fmtCell = (col, val) => {
           minimumFractionDigits: 0,
           maximumFractionDigits: 0
         }).format(num);
-
       case 'decimal':
         if (isNaN(num)) return String(val);
         return new Intl.NumberFormat('es-CO', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         }).format(num);
-
       case 'number':
         if (isNaN(num)) return String(val);
         return new Intl.NumberFormat('es-CO', {
           maximumFractionDigits: 0
         }).format(num);
-
       case 'km':
         if (isNaN(num)) return String(val);
         return new Intl.NumberFormat('es-CO', {
           maximumFractionDigits: 0
         }).format(num) + ' km';
-
       case 'hours':
         if (isNaN(num)) return String(val);
         return new Intl.NumberFormat('es-CO', {
           minimumFractionDigits: 0,
           maximumFractionDigits: 2
         }).format(num) + ' h';
-
       case 'days':
         if (isNaN(num)) return String(val);
         return new Intl.NumberFormat('es-CO', {
           maximumFractionDigits: 1
         }).format(num) + ' días';
-
       case 'date':
         return fmtDate(val);
-
       default:
         return String(val);
     }
