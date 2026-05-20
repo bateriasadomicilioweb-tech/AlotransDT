@@ -1400,7 +1400,9 @@ const fmtCell = (col, val) => {
   };
 
   // ── Estilo de texto según columna
-  const cellStyle = (col, val) => {
+const cellStyle = (col, val) => {
+    if (!val && val !== 0) return { color: 'rgba(255,255,255,0.2)' };
+
     if (col.id === 'estado') {
       const colores = {
         'EN CURSO':  '#f59e0b',
@@ -1411,28 +1413,33 @@ const fmtCell = (col, val) => {
       };
       return { color: colores[val] || 'rgba(255,255,255,0.8)', fontWeight: 700 };
     }
+
     if (col.id === 'placa_recurso') {
       return { color: B.blue, fontFamily: 'monospace', fontWeight: 700 };
     }
+
     if (col.id === 'viaje_interno') {
       return { color: 'white', fontWeight: 700 };
     }
 
-    // Dinero → naranja
-    const sonDinero = ['valor_ruta','valor_remesa','valor_ok','neto_ok','valor_total'];
-    if (sonDinero.includes(col.id) && val) {
+    // Dinero → naranja con monoespaciado
+    if (col.type === 'money_cop') {
       return { color: B.orange, fontFamily: 'monospace' };
     }
 
-    // Cantidades (km, días, horas) → blanco normal, sin naranja
-    const sonCantidad = [
-      'kms_origen_destino','km_reales','num_vehiculos',
-      'dias_entrega','dias_entrega_habil',
-      'horas_entrega','horas_entrega_habiles',
-      'dig','doc','tm'
-    ];
-    if (sonCantidad.includes(col.id)) {
-      return { color: 'rgba(255,255,255,0.85)', fontFamily: 'monospace' };
+    // Decimales → naranja suave
+    if (col.type === 'decimal') {
+      return { color: '#ffaa55', fontFamily: 'monospace' };
+    }
+
+    // Km, horas, días → azul claro
+    if (['km', 'hours', 'days'].includes(col.type)) {
+      return { color: '#7dd3fc', fontFamily: 'monospace' };
+    }
+
+    // Números enteros → blanco
+    if (col.type === 'number') {
+      return { color: 'rgba(255,255,255,0.9)', fontFamily: 'monospace' };
     }
 
     return { color: 'rgba(255,255,255,0.75)' };
