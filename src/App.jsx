@@ -718,7 +718,7 @@ function ColumnManagerView({ columns, onColumnsChange, showToast }) {
                       <div className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold"
                         style={{ backgroundColor: 'rgba(255,255,255,0.04)', color: 'rgba(255,255,255,0.5)' }}>
                         <TypeIcon className="w-3 h-3" />
-                        {col.type}
+                        {typeLabel(col.type)}
                       </div>
                     </div>
 
