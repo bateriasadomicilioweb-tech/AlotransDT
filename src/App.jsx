@@ -1305,11 +1305,48 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
     });
   }, [servicios, query, filterEstado, filterCliente, visibleCols]);
 
-  // ── Formatear celda según tipo de columna
+// ── Formatear celda según tipo de columna
   const fmtCell = (col, val) => {
     if (val === null || val === undefined || val === '') return '';
-    if (col.type === 'number') return fmtCOP(val);
-    if (col.type === 'date')   return fmtDate(val);
+
+    // Columnas numéricas que son DINERO (COP)
+    const sonDinero = [
+      'valor_ruta', 'valor_remesa', 'valor_ok',
+      'neto_ok', 'valor_total'
+    ];
+
+    // Columnas numéricas que son CANTIDADES (sin signo $)
+    const sonCantidad = [
+      'kms_origen_destino', 'km_reales', 'num_vehiculos',
+      'dias_entrega', 'dias_entrega_habil',
+      'horas_entrega', 'horas_entrega_habiles',
+      'dig', 'doc', 'tm'
+    ];
+
+    if (col.type === 'number') {
+      const num = Number(val);
+      if (isNaN(num)) return String(val);
+
+      if (sonDinero.includes(col.id)) {
+        // Formato COP con dos decimales si los tiene
+        return num % 1 === 0
+          ? '$' + new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num)
+          : '$' + new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+      }
+
+      if (sonCantidad.includes(col.id)) {
+        // Número simple, sin símbolo de moneda
+        return num % 1 === 0
+          ? new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 }).format(num)
+          : new Intl.NumberFormat('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(num);
+      }
+
+      // Cualquier otro número: sin símbolo
+      return new Intl.NumberFormat('es-CO', { maximumFractionDigits: 2 }).format(num);
+    }
+
+    if (col.type === 'date') return fmtDate(val);
+
     return String(val);
   };
 
@@ -1325,9 +1362,30 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
       };
       return { color: colores[val] || 'rgba(255,255,255,0.8)', fontWeight: 700 };
     }
-    if (col.id === 'placa_recurso') return { color: B.blue, fontFamily: 'monospace', fontWeight: 700 };
-    if (col.id === 'viaje_interno') return { color: 'white', fontWeight: 700 };
-    if (col.type === 'number' && val) return { color: B.orange, fontFamily: 'monospace' };
+    if (col.id === 'placa_recurso') {
+      return { color: B.blue, fontFamily: 'monospace', fontWeight: 700 };
+    }
+    if (col.id === 'viaje_interno') {
+      return { color: 'white', fontWeight: 700 };
+    }
+
+    // Dinero → naranja
+    const sonDinero = ['valor_ruta','valor_remesa','valor_ok','neto_ok','valor_total'];
+    if (sonDinero.includes(col.id) && val) {
+      return { color: B.orange, fontFamily: 'monospace' };
+    }
+
+    // Cantidades (km, días, horas) → blanco normal, sin naranja
+    const sonCantidad = [
+      'kms_origen_destino','km_reales','num_vehiculos',
+      'dias_entrega','dias_entrega_habil',
+      'horas_entrega','horas_entrega_habiles',
+      'dig','doc','tm'
+    ];
+    if (sonCantidad.includes(col.id)) {
+      return { color: 'rgba(255,255,255,0.85)', fontFamily: 'monospace' };
+    }
+
     return { color: 'rgba(255,255,255,0.75)' };
   };
 
