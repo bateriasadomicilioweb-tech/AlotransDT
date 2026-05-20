@@ -1306,8 +1306,57 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
   }, [servicios, query, filterEstado, filterCliente, visibleCols]);
 
 // ── Formatear celda según tipo de columna
-  const fmtCell = (col, val) => {
+const fmtCell = (col, val) => {
     if (val === null || val === undefined || val === '') return '';
+    const num = Number(val);
+
+    switch (col.type) {
+      case 'money_cop':
+        if (isNaN(num)) return String(val);
+        return '$' + new Intl.NumberFormat('es-CO', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0
+        }).format(num);
+
+      case 'decimal':
+        if (isNaN(num)) return String(val);
+        return new Intl.NumberFormat('es-CO', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }).format(num);
+
+      case 'number':
+        if (isNaN(num)) return String(val);
+        return new Intl.NumberFormat('es-CO', {
+          maximumFractionDigits: 0
+        }).format(num);
+
+      case 'km':
+        if (isNaN(num)) return String(val);
+        return new Intl.NumberFormat('es-CO', {
+          maximumFractionDigits: 0
+        }).format(num) + ' km';
+
+      case 'hours':
+        if (isNaN(num)) return String(val);
+        return new Intl.NumberFormat('es-CO', {
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 2
+        }).format(num) + ' h';
+
+      case 'days':
+        if (isNaN(num)) return String(val);
+        return new Intl.NumberFormat('es-CO', {
+          maximumFractionDigits: 1
+        }).format(num) + ' días';
+
+      case 'date':
+        return fmtDate(val);
+
+      default:
+        return String(val);
+    }
+  };
 
     // Columnas numéricas que son DINERO (COP)
     const sonDinero = [
