@@ -503,7 +503,29 @@ function ColumnManagerView({ columns, onColumnsChange, showToast }) {
   const showAllCols = () => { setCols(prev => prev.map(c => ({ ...c, visible: true }))); setHasChanges(true); };
   const hideNonRequired = () => { setCols(prev => prev.map(c => c.required ? c : { ...c, visible: false })); setHasChanges(true); };
 
-  const typeIcon = (type) => ({ text: Type, number: Hash, date: Calendar, select: Layers }[type] || Type);
+  const typeIcon = (type) => ({
+    text:      Type,
+    money_cop: CircleDollarSign,
+    decimal:   Hash,
+    number:    Hash,
+    km:        MapPin,
+    hours:     Clock,
+    days:      Calendar,
+    date:      Calendar,
+    select:    Layers
+  }[type] || Type);
+
+  const typeLabel = (type) => ({
+    text:      'Texto',
+    money_cop: 'Dinero COP ($)',
+    decimal:   'Decimal',
+    number:    'Número',
+    km:        'Kilómetros (km)',
+    hours:     'Horas (h)',
+    days:      'Días',
+    date:      'Fecha',
+    select:    'Lista desplegable'
+  }[type] || type);
 
   return (
     <div className="space-y-5 animate-fade-up">
