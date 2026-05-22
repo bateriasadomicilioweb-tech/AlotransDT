@@ -10,6 +10,9 @@ import {
   Columns, ToggleLeft, ToggleRight, ChevronUp,
   Pencil, Check, Hash, Type, Calendar,
   Layers, SlidersHorizontal
+
+  Layers, SlidersHorizontal, FileDown, HardDrive,
+  RotateCcw, Upload, FileJson, ShieldCheck, Route
 } from 'lucide-react';
 
 import { loadColumns, saveColumns, getVisibleColumns, emptyRow, DEFAULT_COLUMNS, COLUMN_TYPES } from './lib/columns.js';
@@ -994,6 +997,7 @@ export default function App() {
     { key: 'operaciones', label: 'Servicios', icon: List,            show: true },
     { key: 'captura',     label: 'Captura',   icon: FileSpreadsheet, show: true },
     { key: 'columnas',    label: 'Columnas',  icon: Columns,         show: puede('gestionarColumnas') },
+    { key: 'rutas',       label: 'Rutas',     icon: Route,           show: puede('gestionarColumnas') },
     { key: 'usuarios',    label: 'Usuarios',  icon: Users,           show: puede('gestionarUsuarios') },
   ].filter(x => x.show);
 
@@ -1095,6 +1099,9 @@ export default function App() {
           showToast={showToast} isEditing={!!editingRow} visibleCols={visibleCols} />}
         {view === 'columnas' && puede('gestionarColumnas') && (
           <ColumnManagerView columns={columns} onColumnsChange={setColumns} showToast={showToast} />)}
+        {view === 'rutas' && puede('gestionarColumnas') && (
+          <RutasView showToast={showToast} />
+        )}
         {view === 'usuarios' && puede('gestionarUsuarios') && <UsuariosView showToast={showToast} session={session} />}
       </main>
 
@@ -1955,6 +1962,431 @@ const CellEditor = React.forwardRef(({ col, value, onChange, onKeyDown, onPaste,
       onKeyDown={onKeyDown} onBlur={onBlur} onPaste={onPaste} style={baseStyle} />
   );
 });
+
+// ============================================================
+//  RUTAS VIEW
+// ============================================================
+const COLS_RUTAS = [
+  { key: 'origen',   label: 'ORIGEN',   w: 160 },
+  { key: 'destino',  label: 'DESTINO',  w: 160 },
+  { key: 'ruta',     label: 'RUTA',     w: 260 },
+  { key: 'kms',      label: 'KMS',      w: 100 },
+  { key: 'tipo_mov', label: 'TIPO MOV', w: 220 },
+];
+
+function RutasView({ showToast }) {
+  const [rutas, setRutas]           = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [query, setQuery]           = useState('');
+  const [modo, setModo]             = useState('lista'); // 'lista' | 'captura'
+  const [editando, setEditando]     = useState(null);
+  const [confirmDel, setConfirmDel] = useState(null);
+  const [saving, setSaving]         = useState(false);
+
+  // Filas de la hoja de captura
+  const filaVaciaRuta = () => ({
+    _id: `r-${Date.now()}-${Math.random().toString(36).slice(2,6)}`,
+    origen: '', destino: '', ruta: '', kms: '', tipo_mov: ''
+  });
+  const [rows, setRows] = useState(() =>
+    Array.from({ length: 10 }, () => filaVaciaRuta())
+  );
+  const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
+  const [editCell, setEditCell]     = useState(null);
+  const inputRef                    = useRef(null);
+
+  // ── Cargar rutas
+  const cargar = async () => {
+    setLoading(true);
+    try {
+      if (USE_SUPABASE) {
+        const { data, error } = await supabase
+          .from('rutas')
+          .select('*')
+          .eq('activa', true)
+          .order('origen')
+          .order('destino');
+        if (error) throw error;
+        setRutas(data || []);
+      } else {
+        setRutas(ls.get('alotrans:rutas') || []);
+      }
+    } catch (e) {
+      showToast('Error al cargar rutas', 'error');
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { cargar(); }, []);
+
+  useEffect(() => {
+    if (editCell && inputRef.current) {
+      inputRef.current.focus();
+      if (inputRef.current.select) inputRef.current.select();
+    }
+  }, [editCell]);
+
+  // ── Filtrar
+  const filtradas = useMemo(() => {
+    const q = query.toLowerCase().trim();
+    if (!q) return rutas;
+    return rutas.filter(r =>
+      r.origen?.toLowerCase().includes(q) ||
+      r.destino?.toLowerCase().includes(q) ||
+      r.ruta?.toLowerCase().includes(q) ||
+      r.tipo_mov?.toLowerCase().includes(q)
+    );
+  }, [rutas, query]);
+
+  // ── Eliminar ruta
+  const handleDelete = async (id) => {
+    try {
+      if (USE_SUPABASE) {
+        const { error } = await supabase.from('rutas').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        ls.set('alotrans:rutas', rutas.filter(r => r.id !== id));
+      }
+      showToast('Ruta eliminada', 'success');
+      setConfirmDel(null);
+      cargar();
+    } catch (e) {
+      showToast('Error al eliminar', 'error');
+    }
+  };
+
+  // ── Navegación teclado en hoja de captura
+  const moverCelda = (r, c) => {
+    const nr = Math.max(0, Math.min(rows.length - 1, r));
+    const nc = Math.max(0, Math.min(COLS_RUTAS.length - 1, c));
+    setActiveCell({ row: nr, col: nc });
+  };
+
+  const handleKeyDown = (e, ri, ci) => {
+    if (editCell) {
+      if (e.key === 'Enter')  { e.preventDefault(); setEditCell(null); moverCelda(ri + 1, ci); }
+      if (e.key === 'Escape') { setEditCell(null); }
+      if (e.key === 'Tab')    { e.preventDefault(); setEditCell(null); moverCelda(ri, ci + (e.shiftKey ? -1 : 1)); }
+      return;
+    }
+    const moves = { ArrowUp:[-1,0], ArrowDown:[1,0], ArrowLeft:[0,-1], ArrowRight:[0,1] };
+    if (moves[e.key]) { e.preventDefault(); moverCelda(ri + moves[e.key][0], ci + moves[e.key][1]); return; }
+    if (e.key === 'Tab')   { e.preventDefault(); moverCelda(ri, ci + (e.shiftKey ? -1 : 1)); return; }
+    if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); setEditCell({ row: ri, col: ci }); return; }
+    if (e.key === 'Delete' || e.key === 'Backspace') {
+      e.preventDefault();
+      setRows(prev => { const n=[...prev]; n[ri]={...n[ri],[COLS_RUTAS[ci].key]:''}; return n; });
+    }
+  };
+
+  // ── Pegar desde Excel
+  const handlePaste = (e, startRow, startCol) => {
+    const text = (e.clipboardData || window.clipboardData).getData('text');
+    if (!text) return;
+    const lines = text.replace(/\r/g,'').split('\n').filter(l => l.trim());
+    if (lines.length === 1 && !lines[0].includes('\t') && editCell) return;
+    e.preventDefault();
+    const matrix = lines.map(l => l.split('\t'));
+    setRows(prev => {
+      const next = [...prev];
+      matrix.forEach((cells, rOff) => {
+        const tr = startRow + rOff;
+        while (next.length <= tr) next.push(filaVaciaRuta());
+        cells.forEach((val, cOff) => {
+          const tc = startCol + cOff;
+          if (tc >= COLS_RUTAS.length) return;
+          next[tr] = { ...next[tr], [COLS_RUTAS[tc].key]: val.trim() };
+        });
+      });
+      return next;
+    });
+    setEditCell(null);
+    showToast(`${matrix.length} filas pegadas`, 'success');
+  };
+
+  // ── Guardar rutas de la hoja de captura
+  const guardarRutas = async () => {
+    const validas = rows.filter(r => r.origen?.trim() && r.destino?.trim());
+    if (validas.length === 0) { showToast('No hay filas con datos', 'error'); return; }
+    setSaving(true);
+    try {
+      const payload = validas.map(r => ({
+        origen:   r.origen.trim().toUpperCase(),
+        destino:  r.destino.trim().toUpperCase(),
+        ruta:     r.ruta?.trim() || `${r.origen.trim().toUpperCase()} - ${r.destino.trim().toUpperCase()}`,
+        kms:      r.kms !== '' && !isNaN(Number(r.kms)) ? Number(r.kms) : null,
+        tipo_mov: r.tipo_mov?.trim() || null,
+        activa:   true
+      }));
+      if (USE_SUPABASE) {
+        const { error } = await supabase.from('rutas').insert(payload);
+        if (error) throw error;
+      } else {
+        const existentes = ls.get('alotrans:rutas') || [];
+        ls.set('alotrans:rutas', [
+          ...payload.map((r, i) => ({ ...r, id: Date.now() + i })),
+          ...existentes
+        ]);
+      }
+      showToast(`${payload.length} rutas guardadas`, 'success');
+      setRows(Array.from({ length: 10 }, () => filaVaciaRuta()));
+      setModo('lista');
+      cargar();
+    } catch (e) {
+      showToast('Error al guardar: ' + e.message, 'error');
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="space-y-5 animate-fade-up">
+
+      {/* ── Header */}
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Route className="w-6 h-6" style={{ color: B.orange }} />
+            Rutas
+          </h2>
+          <p className="text-sm text-white/50 mt-1">
+            {rutas.length} rutas registradas
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          {modo === 'lista' ? (
+            <button onClick={() => setModo('captura')}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold hover:scale-[1.02] transition-all"
+              style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
+              <Plus className="w-4 h-4" /> Agregar Rutas
+            </button>
+          ) : (
+            <button onClick={() => setModo('lista')}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border hover:bg-white/5"
+              style={{ borderColor: B.borderH, color: 'rgba(255,255,255,0.7)' }}>
+              <ArrowLeft className="w-4 h-4" /> Volver a la lista
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ══════════════ VISTA LISTA ══════════════ */}
+      {modo === 'lista' && (
+        <>
+          {/* Buscador */}
+          <div className="rounded-3xl border p-4" style={{ backgroundColor: B.card, borderColor: B.border }}>
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40 pointer-events-none" />
+              <input type="text" value={query} onChange={e => setQuery(e.target.value)}
+                placeholder="Buscar por origen, destino, ruta o tipo..."
+                className="w-full pl-11 pr-4 py-3 rounded-xl bg-black/30 border text-white text-sm placeholder-white/30 focus:outline-none"
+                style={{ borderColor: B.borderH }} />
+            </div>
+          </div>
+
+          {/* Tabla */}
+          <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: B.card, borderColor: B.border }}>
+            {loading ? (
+              <div className="p-6 space-y-3">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="h-10 rounded-2xl animate-pulse"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.02)' }} />
+                ))}
+              </div>
+            ) : rutas.length === 0 ? (
+              <div className="p-12 text-center">
+                <Route className="w-12 h-12 text-white/20 mx-auto mb-3" />
+                <p className="text-white font-bold mb-1">Sin rutas registradas</p>
+                <p className="text-white/50 text-sm mb-5">
+                  Haz clic en "Agregar Rutas" y pega tus 950 rutas desde Excel
+                </p>
+                <button onClick={() => setModo('captura')}
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold hover:scale-[1.02]"
+                  style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
+                  <Plus className="w-4 h-4" /> Agregar Rutas
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto" style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                  <table className="border-collapse" style={{ minWidth: '100%' }}>
+                    <thead className="sticky top-0 z-10">
+                      <tr style={{ backgroundColor: '#0d1220' }}>
+                        <th className="sticky left-0 z-20 px-3 py-3 border-r border-b text-[10px] font-bold uppercase text-white/40 text-center whitespace-nowrap"
+                          style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 60, width: 60 }}>
+                          Acción
+                        </th>
+                        {COLS_RUTAS.map(col => (
+                          <th key={col.key}
+                            className="px-3 py-3 border-r border-b text-left text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
+                            style={{ backgroundColor: '#161d33', borderColor: B.border, minWidth: col.w, width: col.w, color: 'rgba(255,255,255,0.6)' }}>
+                            {col.label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filtradas.map((r, idx) => (
+                        <tr key={r.id} className="hover:bg-white/[0.02] transition-colors"
+                          style={{ borderBottom: `1px solid ${B.border}`, backgroundColor: idx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.01)' }}>
+                          <td className="sticky left-0 z-10 px-2 py-2 border-r border-b text-center"
+                            style={{ backgroundColor: idx % 2 === 0 ? B.card : 'rgba(22,29,51,0.98)', borderColor: B.border }}>
+                            <button onClick={() => setConfirmDel(r.id)}
+                              className="w-7 h-7 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform mx-auto"
+                              style={{ backgroundColor: 'rgba(239,68,68,0.1)', borderColor: 'rgba(239,68,68,0.3)' }}>
+                              <Trash2 className="w-3 h-3" style={{ color: '#ef4444' }} />
+                            </button>
+                          </td>
+                          <td className="px-3 py-2 border-r border-b text-sm font-bold whitespace-nowrap"
+                            style={{ borderColor: B.border, color: 'white', minWidth: 160 }}>
+                            {r.origen}
+                          </td>
+                          <td className="px-3 py-2 border-r border-b text-sm whitespace-nowrap"
+                            style={{ borderColor: B.border, color: 'rgba(255,255,255,0.8)', minWidth: 160 }}>
+                            {r.destino}
+                          </td>
+                          <td className="px-3 py-2 border-r border-b text-sm whitespace-nowrap"
+                            style={{ borderColor: B.border, color: 'rgba(255,255,255,0.6)', minWidth: 260, maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {r.ruta}
+                          </td>
+                          <td className="px-3 py-2 border-r border-b text-sm whitespace-nowrap font-mono text-center"
+                            style={{ borderColor: B.border, color: '#7dd3fc', minWidth: 100 }}>
+                            {r.kms ? `${r.kms} km` : '—'}
+                          </td>
+                          <td className="px-3 py-2 border-r border-b text-sm whitespace-nowrap"
+                            style={{ borderColor: B.border, color: 'rgba(255,255,255,0.7)', minWidth: 220 }}>
+                            {r.tipo_mov || '—'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-5 py-3 border-t text-xs text-white/40 flex items-center justify-between"
+                  style={{ borderColor: B.border }}>
+                  <span>Mostrando <strong className="text-white">{filtradas.length}</strong> de {rutas.length} rutas</span>
+                  <span className="flex items-center gap-1.5"><Database className="w-3 h-3" /> Datos persistidos</span>
+                </div>
+              </>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ══════════════ VISTA CAPTURA (hoja tipo Excel) ══════════════ */}
+      {modo === 'captura' && (
+        <div className="space-y-4 pb-28">
+          <div className="rounded-2xl border p-3 flex items-start gap-3"
+            style={{ backgroundColor: B.blue + '08', borderColor: B.blue + '30' }}>
+            <MousePointerClick className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: B.blue }} />
+            <div className="text-xs text-white/80">
+              <strong style={{ color: B.blue }}>Tip:</strong> En Excel selecciona las columnas
+              <strong className="text-white"> ORIGEN · DESTINO · RUTA · KMS · TIPO MOV</strong>
+              → Ctrl+C → clic en la celda origen de la fila 1 → Ctrl+V
+            </div>
+          </div>
+
+          {/* Hoja Excel */}
+          <div className="rounded-3xl border overflow-hidden" style={{ backgroundColor: '#0d1220', borderColor: B.border }}>
+            <div className="overflow-auto" style={{ maxHeight: '60vh' }}>
+              <table className="border-collapse" style={{ minWidth: '100%' }}>
+                <thead className="sticky top-0 z-20">
+                  <tr style={{ backgroundColor: '#0d1220' }}>
+                    <th className="sticky left-0 z-30 px-2 py-2 text-[10px] font-bold text-white/40 border-r border-b text-center"
+                      style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 45 }}>#</th>
+                    {COLS_RUTAS.map((col, ci) => (
+                      <th key={col.key}
+                        className="px-3 py-3 text-left text-[10px] font-bold uppercase tracking-wider border-r border-b whitespace-nowrap"
+                        style={{ backgroundColor: '#161d33', borderColor: B.border, minWidth: col.w, width: col.w, color: ci === activeCell.col ? B.orange : 'rgba(255,255,255,0.6)' }}>
+                        {col.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((row, ri) => (
+                    <tr key={row._id}>
+                      <td className="sticky left-0 z-10 px-2 py-1 border-r border-b text-center text-[11px] font-mono"
+                        style={{ backgroundColor: ri === activeCell.row ? '#1a2240' : '#0d1220', borderColor: B.border, color: ri === activeCell.row ? B.orange : 'rgba(255,255,255,0.25)' }}>
+                        {ri + 1}
+                      </td>
+                      {COLS_RUTAS.map((col, ci) => {
+                        const isActive = ri === activeCell.row && ci === activeCell.col;
+                        const isEditing = editCell?.row === ri && editCell?.col === ci;
+                        const val = row[col.key] ?? '';
+                        return (
+                          <td key={col.key}
+                            className="border-r border-b p-0"
+                            style={{ borderColor: B.border, minWidth: col.w, width: col.w, backgroundColor: isActive ? B.orange + '15' : 'transparent', outline: isActive ? `2px solid ${B.orange}` : 'none', outlineOffset: '-2px' }}
+                            onClick={() => setActiveCell({ row: ri, col: ci })}
+                            onDoubleClick={() => setEditCell({ row: ri, col: ci })}>
+                            {isEditing ? (
+                              <input ref={inputRef} type={col.key === 'kms' ? 'number' : 'text'}
+                                value={val}
+                                onChange={e => setRows(prev => { const n=[...prev]; n[ri]={...n[ri],[col.key]:e.target.value}; return n; })}
+                                onKeyDown={e => handleKeyDown(e, ri, ci)}
+                                onPaste={e => handlePaste(e, ri, ci)}
+                                onBlur={() => setEditCell(null)}
+                                style={{ width:'100%', minHeight:'34px', padding:'8px 12px', backgroundColor:'#1a2240', border:'none', outline:`2px solid ${B.orange}`, outlineOffset:'-2px', color:'#fff', fontSize:'14px', fontFamily:'inherit' }} />
+                            ) : (
+                              <div tabIndex={0}
+                                onKeyDown={e => handleKeyDown(e, ri, ci)}
+                                onPaste={e => handlePaste(e, ri, ci)}
+                                style={{ padding:'8px 12px', minHeight:'34px', fontSize:'14px', color: val ? (col.key==='kms' ? '#7dd3fc' : 'rgba(255,255,255,0.9)') : 'rgba(255,255,255,0.2)', fontFamily: col.key==='kms' ? 'monospace' : 'inherit' }}>
+                                {val || ''}
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Barra fija abajo */}
+          <div className="fixed bottom-0 left-0 right-0 z-40 backdrop-blur-xl border-t p-3 sm:p-4"
+            style={{ backgroundColor: 'rgba(10,14,26,0.95)', borderColor: B.border }}>
+            <div className="max-w-[1600px] mx-auto flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs text-white/50">
+                <button onClick={() => setRows(prev => [...prev, ...Array.from({ length: 10 }, () => filaVaciaRuta())])}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs hover:bg-white/5"
+                  style={{ borderColor: B.borderH, color: B.blue }}>
+                  <Plus className="w-3.5 h-3.5" /> +10 filas
+                </button>
+                <span className="text-white/40">
+                  {rows.filter(r => r.origen?.trim() && r.destino?.trim()).length} filas con datos
+                </span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setModo('lista')}
+                  className="px-4 py-2.5 rounded-xl text-sm font-medium border text-white/80 hover:bg-white/5"
+                  style={{ borderColor: B.borderH }}>
+                  Cancelar
+                </button>
+                <button onClick={guardarRutas} disabled={saving}
+                  className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold hover:scale-[1.02] disabled:opacity-50"
+                  style={{ background: `linear-gradient(135deg, ${B.orange}, #ff8a3d)`, color: 'white', boxShadow: `0 8px 24px ${B.orange}40` }}>
+                  {saving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Guardar {rows.filter(r => r.origen?.trim() && r.destino?.trim()).length > 0 &&
+                    `(${rows.filter(r => r.origen?.trim() && r.destino?.trim()).length})`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmDel && (
+        <ConfirmModal title="¿Eliminar ruta?" message="Esta acción no se puede deshacer"
+          color="#ef4444" icon={AlertCircle}
+          onCancel={() => setConfirmDel(null)} onConfirm={() => handleDelete(confirmDel)}
+          confirmLabel="Eliminar" />
+      )}
+    </div>
+  );
+}
 
 // ============================================================
 //  GESTIÓN DE USUARIOS
