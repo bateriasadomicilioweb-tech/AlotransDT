@@ -15,7 +15,7 @@ import {
 
 import { loadColumns, saveColumns, getVisibleColumns, emptyRow, DEFAULT_COLUMNS, COLUMN_TYPES } from './lib/columns.js';
 import db from './lib/db.js';
-import { USE_SUPABASE } from './lib/supabase.js';
+import { USE_SUPABASE, supabase } from './lib/supabase.js';
 
 // ============================================================
 //  COLORES DE MARCA
