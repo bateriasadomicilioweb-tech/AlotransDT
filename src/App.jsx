@@ -2112,7 +2112,10 @@ function RutasView({ showToast }) {
         origen:   r.origen.trim().toUpperCase(),
         destino:  r.destino.trim().toUpperCase(),
         ruta:     r.ruta?.trim() || `${r.origen.trim().toUpperCase()} - ${r.destino.trim().toUpperCase()}`,
-        kms:      r.kms !== '' && !isNaN(Number(r.kms)) ? Number(r.kms) : null,
+        kms: (() => {
+  const v = String(r.kms ?? '').trim().replace(/\./g, '').replace(',', '.');
+  return v !== '' && !isNaN(Number(v)) ? Number(v) : null;
+})(),
         tipo_mov: r.tipo_mov?.trim() || null,
         activa:   true
       }));
