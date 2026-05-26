@@ -1136,15 +1136,53 @@ export default function App() {
 //  DASHBOARD
 // ============================================================
 function DashboardView({ servicios, loading, session }) {
+  const [periodo, setPeriodo] = useState('mes_actual');
+  const [mesCustom, setMesCustom] = useState('');
+
+  // ── Filtrar servicios por período
+  const serviciosFiltrados = useMemo(() => {
+    const ahora  = new Date();
+    const hoy    = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+
+    const getDate = s => {
+      const d = s.fecha_finalizacion_servicio || s.fecha_inicio_servicio || s.creado_en;
+      if (!d) return null;
+      const parsed = new Date(d);
+      return isNaN(parsed) ? null : parsed;
+    };
+
+    if (periodo === 'todo') return servicios;
+
+    if (periodo === 'semana') {
+      const inicio = new Date(hoy); inicio.setDate(hoy.getDate() - 7);
+      return servicios.filter(s => { const d = getDate(s); return d && d >= inicio; });
+    }
+    if (periodo === 'mes_actual') {
+      const inicio = new Date(ahora.getFullYear(), ahora.getMonth(), 1);
+      return servicios.filter(s => { const d = getDate(s); return d && d >= inicio; });
+    }
+    if (periodo === 'trimestre') {
+      const inicio = new Date(hoy); inicio.setMonth(hoy.getMonth() - 3);
+      return servicios.filter(s => { const d = getDate(s); return d && d >= inicio; });
+    }
+    if (periodo === 'semestre') {
+      const inicio = new Date(hoy); inicio.setMonth(hoy.getMonth() - 6);
+      return servicios.filter(s => { const d = getDate(s); return d && d >= inicio; });
+    }
+    if (periodo === 'anio') {
+      const inicio = new Date(ahora.getFullYear(), 0, 1);
+      return servicios.filter(s => { const d = getDate(s); return d && d >= inicio; });
+    }
+    if (periodo === 'mes_custom' && mesCustom) {
+      const [anio, mes] = mesCustom.split('-').map(Number);
+      const inicio = new Date(anio, mes - 1, 1);
+      const fin    = new Date(anio, mes, 1);
+      return servicios.filter(s => { const d = getDate(s); return d && d >= inicio && d < fin; });
+    }
+    return servicios;
+  }, [servicios, periodo, mesCustom]);
 
   const stats = useMemo(() => {
-    const total      = servicios.length;
-    const enCurso    = servicios.filter(s => s.estado === 'EN CURSO').length;
-    const facturados = servicios.filter(s => s.estado === 'FACTURADO').length;
-    const terminados = servicios.filter(s => s.estado === 'TERMINADO' || s.estado === 'CUMPLIDO').length;
-    const cancelados = servicios.filter(s => s.estado === 'CANCELADO').length;
-
-    // Función para leer valor numérico limpiando formato colombiano
     const toNum = v => {
       if (!v && v !== 0) return 0;
       const cleaned = String(v).replace(/[$ ]/g,'').replace(/\./g,'').replace(',','.');
@@ -1152,56 +1190,55 @@ function DashboardView({ servicios, loading, session }) {
       return isNaN(n) ? 0 : n;
     };
 
-    const totalFacturable = servicios
+    const total      = serviciosFiltrados.length;
+    const enCurso    = serviciosFiltrados.filter(s => s.estado === 'EN CURSO').length;
+    const facturados = serviciosFiltrados.filter(s => s.estado === 'FACTURADO').length;
+    const terminados = serviciosFiltrados.filter(s => s.estado === 'TERMINADO' || s.estado === 'CUMPLIDO').length;
+    const cancelados = serviciosFiltrados.filter(s => s.estado === 'CANCELADO').length;
+
+    const totalFacturable = serviciosFiltrados
       .filter(s => ESTADOS_FACTURABLES.includes(s.estado))
       .reduce((a, s) => a + toNum(s.valor_total), 0);
 
-    const valorEnCurso = servicios
+    const valorEnCurso = serviciosFiltrados
       .filter(s => s.estado === 'EN CURSO')
       .reduce((a, s) => a + toNum(s.valor_total), 0);
 
-    const totalKms = servicios
+    const totalKms = serviciosFiltrados
       .reduce((a, s) => a + toNum(s.kms_origen_destino), 0);
 
-    const totalVehiculos = servicios
+    const totalVehiculos = serviciosFiltrados
       .reduce((a, s) => a + toNum(s.num_vehiculos), 0);
 
-    // Cumplimiento
-    const conCumplimiento = servicios.filter(s => s.cumplimiento);
+    const conCumplimiento = serviciosFiltrados.filter(s => s.cumplimiento);
     const cumple = conCumplimiento.filter(s =>
       s.cumplimiento?.toUpperCase().includes('CUMPLE') ||
       s.cumplimiento?.toUpperCase() === 'CUMPLIDO'
     ).length;
     const pctCumplimiento = conCumplimiento.length > 0
-      ? Math.round((cumple / conCumplimiento.length) * 100)
-      : 0;
+      ? Math.round((cumple / conCumplimiento.length) * 100) : 0;
 
-    // Por contrato
     const porContrato = {};
-    servicios.forEach(s => {
+    serviciosFiltrados.forEach(s => {
       const c = s.contrato || s.cliente || 'Sin contrato';
       if (!porContrato[c]) porContrato[c] = { count: 0, valor: 0 };
       porContrato[c].count++;
       if (ESTADOS_FACTURABLES.includes(s.estado)) porContrato[c].valor += toNum(s.valor_total);
     });
     const contratosTop = Object.entries(porContrato)
-      .sort((a, b) => b[1].count - a[1].count)
-      .slice(0, 6);
+      .sort((a, b) => b[1].count - a[1].count).slice(0, 6);
 
-    // Por ciudad destino
     const porDestino = {};
-    servicios.forEach(s => {
+    serviciosFiltrados.forEach(s => {
       const d = s.ciudad_destino || 'Sin destino';
       if (!porDestino[d]) porDestino[d] = 0;
       porDestino[d]++;
     });
     const destinosTop = Object.entries(porDestino)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
+      .sort((a, b) => b[1] - a[1]).slice(0, 5);
 
-    // Por tipo de movimiento
     const porTipoMov = {};
-    servicios.forEach(s => {
+    serviciosFiltrados.forEach(s => {
       const t = s.tipo_mov || 'Sin tipo';
       if (!porTipoMov[t]) porTipoMov[t] = 0;
       porTipoMov[t]++;
@@ -1209,12 +1246,10 @@ function DashboardView({ servicios, loading, session }) {
     const tipoMovTop = Object.entries(porTipoMov)
       .sort((a, b) => b[1] - a[1]);
 
-    // Últimos servicios
-    const ultimos = [...servicios]
+    const ultimos = [...serviciosFiltrados]
       .sort((a, b) => new Date(b.actualizado_en || b.creado_en || 0) - new Date(a.actualizado_en || a.creado_en || 0))
       .slice(0, 6);
 
-    // Servicios en curso más antiguos (pendientes)
     const pendientes = servicios
       .filter(s => s.estado === 'EN CURSO')
       .sort((a, b) => new Date(a.fecha_inicio_servicio || a.creado_en || 0) - new Date(b.fecha_inicio_servicio || b.creado_en || 0))
@@ -1226,7 +1261,7 @@ function DashboardView({ servicios, loading, session }) {
       pctCumplimiento, contratosTop, destinosTop, tipoMovTop,
       ultimos, pendientes, toNum
     };
-  }, [servicios]);
+  }, [serviciosFiltrados, servicios]);
 
   if (loading) return (
     <div className="space-y-4">
@@ -1237,7 +1272,26 @@ function DashboardView({ servicios, loading, session }) {
     </div>
   );
 
-  const tipoMovColors = ['#ff6a00', '#2b7fc7', '#10b981', '#f59e0b', '#8b5cf6'];
+  const tipoMovColors = ['#ff6a00','#2b7fc7','#10b981','#f59e0b','#8b5cf6'];
+
+  const PERIODOS = [
+    { key: 'semana',     label: 'Semana' },
+    { key: 'mes_actual', label: 'Este mes' },
+    { key: 'trimestre',  label: 'Trimestre' },
+    { key: 'semestre',   label: 'Semestre' },
+    { key: 'anio',       label: 'Este año' },
+    { key: 'todo',       label: 'Todo' },
+    { key: 'mes_custom', label: 'Mes específico' },
+  ];
+
+  const labelPeriodo = () => {
+    if (periodo === 'mes_custom' && mesCustom) {
+      const [anio, mes] = mesCustom.split('-');
+      return new Date(Number(anio), Number(mes) - 1, 1)
+        .toLocaleDateString('es-CO', { month: 'long', year: 'numeric' });
+    }
+    return PERIODOS.find(p => p.key === periodo)?.label || '';
+  };
 
   return (
     <div className="space-y-5 animate-fade-up">
@@ -1256,7 +1310,7 @@ function DashboardView({ servicios, loading, session }) {
               Hola, {session.nombre.split(' ')[0]} 👋
             </h1>
             <p className="text-sm text-white/60 mt-1">
-              Resumen operativo de Alotrans Carga en tiempo real
+              Resumen operativo de Alotrans Carga · <span style={{ color: B.orange }}>{labelPeriodo()}</span>
             </p>
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
@@ -1269,6 +1323,48 @@ function DashboardView({ servicios, loading, session }) {
             {session.rol}
           </span>
         </div>
+      </div>
+
+      {/* ── Selector de período */}
+      <div className="rounded-3xl border p-4" style={{ backgroundColor: B.card, borderColor: B.border }}>
+        <div className="flex items-center gap-2 flex-wrap">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-white/50 mr-1">Ver período:</p>
+          <div className="flex gap-1.5 flex-wrap">
+            {PERIODOS.filter(p => p.key !== 'mes_custom').map(p => (
+              <button key={p.key} onClick={() => setPeriodo(p.key)}
+                className="px-3 py-1.5 rounded-xl text-xs font-medium transition-all"
+                style={{
+                  backgroundColor: periodo === p.key ? B.orange : 'rgba(255,255,255,0.05)',
+                  color: periodo === p.key ? 'white' : 'rgba(255,255,255,0.6)',
+                  fontWeight: periodo === p.key ? 700 : 500,
+                  boxShadow: periodo === p.key ? `0 4px 12px ${B.orange}40` : 'none'
+                }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+          {/* Picker mes específico */}
+          <div className="flex items-center gap-2 ml-auto">
+            <input type="month" value={mesCustom}
+              onChange={e => { setMesCustom(e.target.value); setPeriodo('mes_custom'); }}
+              className="px-3 py-1.5 rounded-xl text-xs bg-black/30 border text-white focus:outline-none cursor-pointer"
+              style={{ borderColor: periodo === 'mes_custom' ? B.orange : B.borderH, colorScheme: 'dark' }}
+              title="Seleccionar mes específico" />
+            {periodo === 'mes_custom' && mesCustom && (
+              <span className="text-xs font-bold px-2 py-1 rounded-lg"
+                style={{ color: B.orange, backgroundColor: B.orange + '15' }}>
+                {labelPeriodo()}
+              </span>
+            )}
+          </div>
+        </div>
+        {/* Indicador de resultados */}
+        <p className="text-[11px] text-white/40 mt-3">
+          {stats.total === 0
+            ? <span style={{ color: '#f59e0b' }}>Sin servicios en este período</span>
+            : <span><strong className="text-white">{stats.total}</strong> de {servicios.length} servicios en el período seleccionado</span>
+          }
+        </p>
       </div>
 
       {/* ── KPIs Financieros */}
@@ -1288,11 +1384,11 @@ function DashboardView({ servicios, loading, session }) {
       {/* ── KPIs Operativos */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { icon: ClipboardList, label: 'Total', value: stats.total,      color: B.orange },
-          { icon: Clock,         label: 'En Curso',  value: stats.enCurso,    color: '#f59e0b' },
-          { icon: FileCheck2,    label: 'Facturados', value: stats.facturados, color: B.blue },
-          { icon: CheckCircle2,  label: 'Terminados', value: stats.terminados, color: '#10b981' },
-          { icon: X,             label: 'Cancelados', value: stats.cancelados, color: '#ef4444' },
+          { icon: ClipboardList, label: 'Total',        value: stats.total,            color: B.orange },
+          { icon: Clock,         label: 'En Curso',     value: stats.enCurso,          color: '#f59e0b' },
+          { icon: FileCheck2,    label: 'Facturados',   value: stats.facturados,       color: B.blue },
+          { icon: CheckCircle2,  label: 'Terminados',   value: stats.terminados,       color: '#10b981' },
+          { icon: X,             label: 'Cancelados',   value: stats.cancelados,       color: '#ef4444' },
           { icon: CheckCircle2,  label: 'Cumplimiento', value: `${stats.pctCumplimiento}%`, color: '#a78bfa' },
         ].map(k => <MiniKpi key={k.label} {...k} />)}
       </div>
@@ -1327,19 +1423,16 @@ function DashboardView({ servicios, loading, session }) {
         </div>
       </div>
 
-      {/* ── Fila: Contratos + Destinos + Tipo Mov */}
+      {/* ── Contratos + Destinos + Tipo Mov */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
-
-        {/* Facturación por Contrato */}
         <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4" style={{ color: B.orange }} />
             <h3 className="font-bold text-white text-sm">Servicios por Contrato</h3>
           </div>
           {stats.contratosTop.length === 0
-            ? <p className="text-center text-white/40 text-sm py-6">Sin datos</p>
-            : (
-              <div className="space-y-3">
+            ? <p className="text-center text-white/40 text-sm py-6">Sin datos en este período</p>
+            : <div className="space-y-3">
                 {stats.contratosTop.map(([contrato, data]) => {
                   const max = Math.max(...stats.contratosTop.map(([, d]) => d.count), 1);
                   return (
@@ -1356,20 +1449,17 @@ function DashboardView({ servicios, loading, session }) {
                   );
                 })}
               </div>
-            )
           }
         </div>
 
-        {/* Top Destinos */}
         <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
             <MapPin className="w-4 h-4" style={{ color: '#7dd3fc' }} />
             <h3 className="font-bold text-white text-sm">Top 5 Destinos</h3>
           </div>
           {stats.destinosTop.length === 0
-            ? <p className="text-center text-white/40 text-sm py-6">Sin datos</p>
-            : (
-              <div className="space-y-3">
+            ? <p className="text-center text-white/40 text-sm py-6">Sin datos en este período</p>
+            : <div className="space-y-3">
                 {stats.destinosTop.map(([destino, count], idx) => {
                   const max = stats.destinosTop[0][1];
                   return (
@@ -1377,10 +1467,8 @@ function DashboardView({ servicios, loading, session }) {
                       <div className="flex items-center justify-between text-xs mb-1">
                         <div className="flex items-center gap-2">
                           <span className="w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                            style={{ backgroundColor: '#7dd3fc20', color: '#7dd3fc' }}>
-                            {idx + 1}
-                          </span>
-                          <span className="text-white/80 font-medium truncate max-w-[55%]" title={destino}>{destino}</span>
+                            style={{ backgroundColor: '#7dd3fc20', color: '#7dd3fc' }}>{idx + 1}</span>
+                          <span className="text-white/80 truncate max-w-[55%]" title={destino}>{destino}</span>
                         </div>
                         <span className="font-bold text-white/70">{count}</span>
                       </div>
@@ -1392,20 +1480,17 @@ function DashboardView({ servicios, loading, session }) {
                   );
                 })}
               </div>
-            )
           }
         </div>
 
-        {/* Tipo de movimiento */}
         <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
             <Route className="w-4 h-4" style={{ color: '#a78bfa' }} />
             <h3 className="font-bold text-white text-sm">Tipo de Movimiento</h3>
           </div>
           {stats.tipoMovTop.length === 0
-            ? <p className="text-center text-white/40 text-sm py-6">Sin datos</p>
-            : (
-              <div className="space-y-3">
+            ? <p className="text-center text-white/40 text-sm py-6">Sin datos en este período</p>
+            : <div className="space-y-3">
                 {stats.tipoMovTop.map(([tipo, count], idx) => {
                   const total = stats.tipoMovTop.reduce((a, [, c]) => a + c, 0);
                   const pct   = Math.round((count / total) * 100);
@@ -1413,7 +1498,7 @@ function DashboardView({ servicios, loading, session }) {
                   return (
                     <div key={tipo}>
                       <div className="flex items-center justify-between text-xs mb-1">
-                        <span className="text-white/80 font-medium truncate max-w-[65%]" title={tipo}>{tipo}</span>
+                        <span className="text-white/80 truncate max-w-[65%]" title={tipo}>{tipo}</span>
                         <span className="font-bold" style={{ color }}>{count} <span className="text-white/40">({pct}%)</span></span>
                       </div>
                       <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
@@ -1423,24 +1508,20 @@ function DashboardView({ servicios, loading, session }) {
                   );
                 })}
               </div>
-            )
           }
         </div>
       </div>
 
       {/* ── Actividad reciente + Pendientes */}
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-
-        {/* Últimos servicios */}
         <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
             <Clock className="w-4 h-4" style={{ color: B.blue }} />
             <h3 className="font-bold text-white text-sm">Actividad Reciente</h3>
           </div>
           {stats.ultimos.length === 0
-            ? <p className="text-center text-white/40 text-sm py-6">Sin actividad</p>
-            : (
-              <div className="space-y-2">
+            ? <p className="text-center text-white/40 text-sm py-6">Sin actividad en este período</p>
+            : <div className="space-y-2">
                 {stats.ultimos.map(s => (
                   <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl border hover:bg-white/[0.02] transition-colors"
                     style={{ borderColor: B.border }}>
@@ -1463,25 +1544,20 @@ function DashboardView({ servicios, loading, session }) {
                   </div>
                 ))}
               </div>
-            )
           }
         </div>
 
-        {/* Servicios pendientes (en curso más antiguos) */}
         <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
             <AlertCircle className="w-4 h-4" style={{ color: '#f59e0b' }} />
             <h3 className="font-bold text-white text-sm">En Curso — Más Antiguos</h3>
           </div>
           {stats.pendientes.length === 0
-            ? (
-              <div className="text-center py-6">
+            ? <div className="text-center py-6">
                 <CheckCircle2 className="w-8 h-8 mx-auto mb-2" style={{ color: '#10b981' }} />
                 <p className="text-white/60 text-sm">Sin servicios en curso</p>
               </div>
-            )
-            : (
-              <div className="space-y-2">
+            : <div className="space-y-2">
                 {stats.pendientes.map(s => (
                   <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl border"
                     style={{ borderColor: '#f59e0b30', backgroundColor: 'rgba(245,158,11,0.04)' }}>
@@ -1489,9 +1565,7 @@ function DashboardView({ servicios, loading, session }) {
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-sm text-white">{s.viaje_interno || '—'}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
-                          style={{ color: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)' }}>
-                          EN CURSO
-                        </span>
+                          style={{ color: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)' }}>EN CURSO</span>
                       </div>
                       <p className="text-xs text-white/50 mt-0.5 truncate">
                         {s.ciudad_origen || '?'} → {s.ciudad_destino || '?'}
@@ -1505,22 +1579,19 @@ function DashboardView({ servicios, loading, session }) {
                   </div>
                 ))}
               </div>
-            )
           }
         </div>
       </div>
 
-      {/* ── Nota regla de negocio */}
       <div className="rounded-2xl border p-4 flex items-start gap-3"
         style={{ backgroundColor: 'rgba(16,185,129,0.05)', borderColor: 'rgba(16,185,129,0.2)' }}>
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
         <div className="text-xs text-white/70 leading-relaxed">
           <strong style={{ color: '#10b981' }}>Regla de cálculo: </strong>
-          el <em>Total Facturable</em> incluye solo servicios
-          <strong className="text-white"> FACTURADO</strong>,
-          <strong className="text-white"> TERMINADO</strong> y
-          <strong className="text-white"> CUMPLIDO</strong>.
+          el <em>Total Facturable</em> incluye solo <strong className="text-white">FACTURADO</strong>,
+          <strong className="text-white"> TERMINADO</strong> y <strong className="text-white">CUMPLIDO</strong>.
           Los servicios <strong className="text-white">EN CURSO</strong> se muestran aparte.
+          El filtro de período usa la fecha de finalización del servicio.
         </div>
       </div>
     </div>
@@ -1568,6 +1639,8 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
   const [filterEstado, setFilterEstado]   = useState('TODOS');
   const [filterCliente, setFilterCliente] = useState('TODOS');
   const [showExport, setShowExport]       = useState(false);
+  const [selectedIds, setSelectedIds]     = useState(new Set());
+  const [confirmDelLote, setConfirmDelLote] = useState(false);
 
   const ESTADOS_ALL  = ['EN CURSO', 'FACTURADO', 'TERMINADO', 'CUMPLIDO', 'CANCELADO'];
   const CONTRATOS_ALL = [
@@ -1578,6 +1651,26 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
   'TRIUMPH', 'AUTOBONN', 'BLUE MOBILITY'
 ];
 
+const toggleSelectServicio = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectTodos = () => {
+    if (selectedIds.size === filtrados.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(filtrados.map(s => s.id)));
+  };
+
+  const handleDeleteLoteServicios = async () => {
+    const ids = [...selectedIds];
+    for (const id of ids) await onDelete(id);
+    setSelectedIds(new Set());
+    setConfirmDelLote(false);
+  };
+  
   const filtrados = useMemo(() => {
     return servicios.filter(s => {
       const q = query.toLowerCase().trim();
@@ -1795,10 +1888,17 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
               <table className="border-collapse" style={{ minWidth: '100%' }}>
                 <thead className="sticky top-0 z-10">
                   <tr style={{ backgroundColor: '#0d1220' }}>
-                    <th className="sticky left-0 z-20 px-3 py-3 border-r border-b text-[10px] font-bold uppercase tracking-wider text-white/40 text-center whitespace-nowrap"
-                      style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 76, width: 76 }}>
-                      Acción
-                    </th>
+                    <th className="sticky left-0 z-20 px-2 py-3 border-r border-b text-center"
+  style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 44, width: 44 }}>
+  <input type="checkbox"
+    checked={filtrados.length > 0 && selectedIds.size === filtrados.length}
+    onChange={toggleSelectTodos}
+    className="w-4 h-4 cursor-pointer accent-orange-500" />
+</th>
+<th className="px-3 py-3 border-r border-b text-[10px] font-bold uppercase tracking-wider text-white/40 text-center whitespace-nowrap"
+  style={{ backgroundColor: '#0d1220', borderColor: B.border, minWidth: 70, width: 70 }}>
+  Acción
+</th>
                     {visibleCols.map(col => (
                       <th key={col.id}
                         className="px-3 py-3 border-r border-b text-left text-[10px] font-bold uppercase tracking-wider whitespace-nowrap"
@@ -1813,8 +1913,15 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
                     <tr key={s.id} className="hover:bg-white/[0.025] transition-colors"
                       style={{ borderBottom: `1px solid ${B.border}`, backgroundColor: rowIdx % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.012)' }}>
                       <td className="sticky left-0 z-10 px-2 py-2 border-r border-b text-center"
-                        style={{ backgroundColor: rowIdx % 2 === 0 ? B.card : 'rgba(22,29,51,0.98)', borderColor: B.border }}>
-                        <div className="flex items-center justify-center gap-1">
+  style={{ backgroundColor: selectedIds.has(s.id) ? 'rgba(255,106,0,0.08)' : rowIdx % 2 === 0 ? B.card : 'rgba(22,29,51,0.98)', borderColor: B.border }}>
+  <input type="checkbox"
+    checked={selectedIds.has(s.id)}
+    onChange={() => toggleSelectServicio(s.id)}
+    className="w-4 h-4 cursor-pointer accent-orange-500" />
+</td>
+<td className="px-2 py-2 border-r border-b text-center"
+  style={{ borderColor: B.border }}>
+  <div className="flex items-center justify-center gap-1">
                           {puede('editar') && (
                             <button onClick={() => onEdit(s)} title="Editar"
                               className="w-7 h-7 rounded-lg flex items-center justify-center border hover:scale-110 transition-transform"
