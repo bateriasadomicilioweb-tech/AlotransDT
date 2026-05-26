@@ -1820,6 +1820,16 @@ const toggleSelectServicio = (id) => {
               )}
             </div>
           )}
+
+          {puede('eliminar') && selectedIds.size > 0 && (
+            <button onClick={() => setConfirmDelLote(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium border hover:bg-red-500/10 transition-colors"
+              style={{ borderColor: 'rgba(239,68,68,0.4)', color: '#ef4444' }}>
+              <Trash2 className="w-4 h-4" />
+              Eliminar {selectedIds.size} seleccionados
+            </button>
+          )}
+          
           {(puede('crear') || puede('editar')) && (
             <button onClick={onNewBulk}
               className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all hover:scale-[1.02]"
@@ -1969,6 +1979,15 @@ const toggleSelectServicio = (id) => {
           </>
         )}
       </div>
+      {confirmDelLote && (
+        <ConfirmModal
+          title={`¿Eliminar ${selectedIds.size} servicios?`}
+          message="Esta acción no se puede deshacer"
+          color="#ef4444" icon={AlertCircle}
+          onCancel={() => setConfirmDelLote(false)}
+          onConfirm={handleDeleteLoteServicios}
+          confirmLabel={`Eliminar ${selectedIds.size} servicios`} />
+      )}
     </div>
   );
 }
