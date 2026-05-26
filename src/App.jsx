@@ -1136,45 +1136,128 @@ export default function App() {
 //  DASHBOARD
 // ============================================================
 function DashboardView({ servicios, loading, session }) {
+
   const stats = useMemo(() => {
-    const total = servicios.length;
-    const enCurso = servicios.filter(s => s.estado === 'EN CURSO').length;
+    const total      = servicios.length;
+    const enCurso    = servicios.filter(s => s.estado === 'EN CURSO').length;
     const facturados = servicios.filter(s => s.estado === 'FACTURADO').length;
     const terminados = servicios.filter(s => s.estado === 'TERMINADO' || s.estado === 'CUMPLIDO').length;
     const cancelados = servicios.filter(s => s.estado === 'CANCELADO').length;
-    const totalFacturable = servicios.filter(s => ESTADOS_FACTURABLES.includes(s.estado)).reduce((a, s) => a + (Number(s.valor_total) || 0), 0);
-    const valorEnCurso = servicios.filter(s => s.estado === 'EN CURSO').reduce((a, s) => a + (Number(s.valor_total) || 0), 0);
-    const porCliente = {};
+
+    // Función para leer valor numérico limpiando formato colombiano
+    const toNum = v => {
+      if (!v && v !== 0) return 0;
+      const cleaned = String(v).replace(/[$ ]/g,'').replace(/\./g,'').replace(',','.');
+      const n = Number(cleaned);
+      return isNaN(n) ? 0 : n;
+    };
+
+    const totalFacturable = servicios
+      .filter(s => ESTADOS_FACTURABLES.includes(s.estado))
+      .reduce((a, s) => a + toNum(s.valor_total), 0);
+
+    const valorEnCurso = servicios
+      .filter(s => s.estado === 'EN CURSO')
+      .reduce((a, s) => a + toNum(s.valor_total), 0);
+
+    const totalKms = servicios
+      .reduce((a, s) => a + toNum(s.kms_origen_destino), 0);
+
+    const totalVehiculos = servicios
+      .reduce((a, s) => a + toNum(s.num_vehiculos), 0);
+
+    // Cumplimiento
+    const conCumplimiento = servicios.filter(s => s.cumplimiento);
+    const cumple = conCumplimiento.filter(s =>
+      s.cumplimiento?.toUpperCase().includes('CUMPLE') ||
+      s.cumplimiento?.toUpperCase() === 'CUMPLIDO'
+    ).length;
+    const pctCumplimiento = conCumplimiento.length > 0
+      ? Math.round((cumple / conCumplimiento.length) * 100)
+      : 0;
+
+    // Por contrato
+    const porContrato = {};
     servicios.forEach(s => {
-      const c = s.cliente || 'Sin cliente';
-      if (!porCliente[c]) porCliente[c] = { count: 0, valor: 0 };
-      porCliente[c].count++;
-      if (ESTADOS_FACTURABLES.includes(s.estado)) porCliente[c].valor += Number(s.valor_total) || 0;
+      const c = s.contrato || s.cliente || 'Sin contrato';
+      if (!porContrato[c]) porContrato[c] = { count: 0, valor: 0 };
+      porContrato[c].count++;
+      if (ESTADOS_FACTURABLES.includes(s.estado)) porContrato[c].valor += toNum(s.valor_total);
     });
-    const clientesTop = Object.entries(porCliente).sort((a, b) => b[1].valor - a[1].valor).slice(0, 5);
-    const ultimos = [...servicios].sort((a, b) => new Date(b.actualizado_en || b.creado_en || 0) - new Date(a.actualizado_en || a.creado_en || 0)).slice(0, 5);
-    return { total, enCurso, facturados, terminados, cancelados, totalFacturable, valorEnCurso, clientesTop, ultimos };
+    const contratosTop = Object.entries(porContrato)
+      .sort((a, b) => b[1].count - a[1].count)
+      .slice(0, 6);
+
+    // Por ciudad destino
+    const porDestino = {};
+    servicios.forEach(s => {
+      const d = s.ciudad_destino || 'Sin destino';
+      if (!porDestino[d]) porDestino[d] = 0;
+      porDestino[d]++;
+    });
+    const destinosTop = Object.entries(porDestino)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    // Por tipo de movimiento
+    const porTipoMov = {};
+    servicios.forEach(s => {
+      const t = s.tipo_mov || 'Sin tipo';
+      if (!porTipoMov[t]) porTipoMov[t] = 0;
+      porTipoMov[t]++;
+    });
+    const tipoMovTop = Object.entries(porTipoMov)
+      .sort((a, b) => b[1] - a[1]);
+
+    // Últimos servicios
+    const ultimos = [...servicios]
+      .sort((a, b) => new Date(b.actualizado_en || b.creado_en || 0) - new Date(a.actualizado_en || a.creado_en || 0))
+      .slice(0, 6);
+
+    // Servicios en curso más antiguos (pendientes)
+    const pendientes = servicios
+      .filter(s => s.estado === 'EN CURSO')
+      .sort((a, b) => new Date(a.fecha_inicio_servicio || a.creado_en || 0) - new Date(b.fecha_inicio_servicio || b.creado_en || 0))
+      .slice(0, 5);
+
+    return {
+      total, enCurso, facturados, terminados, cancelados,
+      totalFacturable, valorEnCurso, totalKms, totalVehiculos,
+      pctCumplimiento, contratosTop, destinosTop, tipoMovTop,
+      ultimos, pendientes, toNum
+    };
   }, [servicios]);
 
   if (loading) return (
     <div className="space-y-4">
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="h-32 rounded-3xl animate-pulse" style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.1}s` }} />
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="h-28 rounded-3xl animate-pulse"
+          style={{ backgroundColor: 'rgba(255,255,255,0.02)', animationDelay: `${i * 0.1}s` }} />
       ))}
     </div>
   );
 
+  const tipoMovColors = ['#ff6a00', '#2b7fc7', '#10b981', '#f59e0b', '#8b5cf6'];
+
   return (
-    <div className="space-y-6 animate-fade-up">
-      <div className="rounded-3xl border p-6 sm:p-7 relative overflow-hidden"
+    <div className="space-y-5 animate-fade-up">
+
+      {/* ── Bienvenida */}
+      <div className="rounded-3xl border p-5 sm:p-6 relative overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${B.card}, ${B.cardAlt})`, borderColor: B.borderH }}>
-        <div className="absolute -right-20 -top-20 w-64 h-64 rounded-full opacity-15"
-          style={{ background: `radial-gradient(circle, ${B.orange} 0%, transparent 70%)` }} />
+        <div className="absolute -right-16 -top-16 w-56 h-56 rounded-full opacity-15"
+          style={{ background: `radial-gradient(circle, ${B.orange}, transparent 70%)` }} />
         <div className="relative flex items-start justify-between gap-4 flex-wrap">
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: B.orange }}>Panel Maestro de Operaciones</p>
-            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">Hola, {session.nombre.split(' ')[0]} 👋</h1>
-            <p className="text-sm text-white/60 mt-2">Resumen operativo de Alotrans Carga en tiempo real</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: B.orange }}>
+              Panel Maestro de Operaciones
+            </p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-white mt-1">
+              Hola, {session.nombre.split(' ')[0]} 👋
+            </h1>
+            <p className="text-sm text-white/60 mt-1">
+              Resumen operativo de Alotrans Carga en tiempo real
+            </p>
           </div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border"
             style={{
@@ -1182,92 +1265,262 @@ function DashboardView({ servicios, loading, session }) {
               backgroundColor: (session.rol === 'ADMIN' ? B.orange : B.blue) + '15',
               borderColor: (session.rol === 'ADMIN' ? B.orange : B.blue) + '40'
             }}>
-            {session.rol === 'ADMIN' ? <Shield className="w-3 h-3" /> : <UserCog className="w-3 h-3" />} {session.rol}
+            {session.rol === 'ADMIN' ? <Shield className="w-3 h-3" /> : <UserCog className="w-3 h-3" />}
+            {session.rol}
           </span>
         </div>
       </div>
 
+      {/* ── KPIs Financieros */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <BigKpi icon={CircleDollarSign} label="Total Facturable" helper="Finalizados y facturados"
-          value={fmtCOP(stats.totalFacturable)} compact={fmtCOPCompact(stats.totalFacturable)} color="#10b981" highlight />
-        <BigKpi icon={Clock} label="Valor en Curso" helper="No suma al total"
-          value={fmtCOP(stats.valorEnCurso)} compact={fmtCOPCompact(stats.valorEnCurso)} color="#f59e0b" />
+        <BigKpi icon={CircleDollarSign} label="Total Facturable"
+          helper="Servicios FACTURADO · TERMINADO · CUMPLIDO"
+          value={fmtCOP(stats.totalFacturable)}
+          compact={fmtCOPCompact(stats.totalFacturable)}
+          color="#10b981" highlight />
+        <BigKpi icon={Clock} label="Valor en Curso"
+          helper="Servicios EN CURSO — no suma al total"
+          value={fmtCOP(stats.valorEnCurso)}
+          compact={fmtCOPCompact(stats.valorEnCurso)}
+          color="#f59e0b" />
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {/* ── KPIs Operativos */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {[
-          { icon: ClipboardList, label: 'Total', value: stats.total, color: B.orange },
-          { icon: Clock, label: 'En Curso', value: stats.enCurso, color: '#f59e0b' },
-          { icon: FileCheck2, label: 'Facturados', value: stats.facturados, color: B.blue },
-          { icon: CheckCircle2, label: 'Terminados', value: stats.terminados, color: '#10b981' },
-          { icon: X, label: 'Cancelados', value: stats.cancelados, color: '#ef4444' }
-        ].map(kpi => <MiniKpi key={kpi.label} {...kpi} />)}
+          { icon: ClipboardList, label: 'Total', value: stats.total,      color: B.orange },
+          { icon: Clock,         label: 'En Curso',  value: stats.enCurso,    color: '#f59e0b' },
+          { icon: FileCheck2,    label: 'Facturados', value: stats.facturados, color: B.blue },
+          { icon: CheckCircle2,  label: 'Terminados', value: stats.terminados, color: '#10b981' },
+          { icon: X,             label: 'Cancelados', value: stats.cancelados, color: '#ef4444' },
+          { icon: CheckCircle2,  label: 'Cumplimiento', value: `${stats.pctCumplimiento}%`, color: '#a78bfa' },
+        ].map(k => <MiniKpi key={k.label} {...k} />)}
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div className="rounded-3xl border p-5 sm:p-6" style={{ backgroundColor: B.card, borderColor: B.border }}>
+      {/* ── KPIs Logísticos */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="rounded-2xl border p-4 flex items-center gap-4"
+          style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center border flex-shrink-0"
+            style={{ backgroundColor: '#7dd3fc15', borderColor: '#7dd3fc40' }}>
+            <MapPin className="w-5 h-5" style={{ color: '#7dd3fc' }} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Total KMS recorridos</p>
+            <p className="text-2xl font-bold font-mono mt-1" style={{ color: '#7dd3fc' }}>
+              {new Intl.NumberFormat('es-CO').format(Math.round(stats.totalKms))} km
+            </p>
+          </div>
+        </div>
+        <div className="rounded-2xl border p-4 flex items-center gap-4"
+          style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center border flex-shrink-0"
+            style={{ backgroundColor: B.orange + '15', borderColor: B.orange + '40' }}>
+            <Database className="w-5 h-5" style={{ color: B.orange }} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Total vehículos despachados</p>
+            <p className="text-2xl font-bold font-mono mt-1" style={{ color: B.orange }}>
+              {new Intl.NumberFormat('es-CO').format(stats.totalVehiculos)}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Fila: Contratos + Destinos + Tipo Mov */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+
+        {/* Facturación por Contrato */}
+        <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4" style={{ color: B.orange }} />
-            <h3 className="font-bold text-white">Facturación por Cliente</h3>
+            <h3 className="font-bold text-white text-sm">Servicios por Contrato</h3>
           </div>
-          {stats.clientesTop.length === 0 ? <p className="text-center text-white/40 text-sm py-12">Sin datos</p> : (
-            <div className="space-y-3">
-              {stats.clientesTop.map(([cliente, data]) => {
-                const max = Math.max(...stats.clientesTop.map(([, d]) => d.valor), 1);
-                return (
-                  <div key={cliente}>
-                    <div className="flex items-center justify-between text-sm mb-1.5">
-                      <span className="text-white/90 font-medium">{cliente}</span>
-                      <span className="font-bold font-mono" style={{ color: B.orange }}>{fmtCOP(data.valor)}</span>
+          {stats.contratosTop.length === 0
+            ? <p className="text-center text-white/40 text-sm py-6">Sin datos</p>
+            : (
+              <div className="space-y-3">
+                {stats.contratosTop.map(([contrato, data]) => {
+                  const max = Math.max(...stats.contratosTop.map(([, d]) => d.count), 1);
+                  return (
+                    <div key={contrato}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-white/80 font-medium truncate max-w-[60%]" title={contrato}>{contrato}</span>
+                        <span className="font-bold" style={{ color: B.orange }}>{data.count} serv.</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                        <div className="h-full rounded-full"
+                          style={{ width: `${(data.count / max) * 100}%`, background: `linear-gradient(90deg, ${B.orange}, #ff8a3d)` }} />
+                      </div>
                     </div>
-                    <div className="h-2 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
-                      <div className="h-full rounded-full" style={{ width: `${(data.valor / max) * 100}%`, background: `linear-gradient(90deg, ${B.orange}, #ff8a3d)` }} />
-                    </div>
-                    <p className="text-[10px] text-white/40 mt-1">{data.count} servicios</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )
+          }
         </div>
-        <div className="rounded-3xl border p-5 sm:p-6" style={{ backgroundColor: B.card, borderColor: B.border }}>
+
+        {/* Top Destinos */}
+        <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
           <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-4 h-4" style={{ color: B.blue }} />
-            <h3 className="font-bold text-white">Actividad Reciente</h3>
+            <MapPin className="w-4 h-4" style={{ color: '#7dd3fc' }} />
+            <h3 className="font-bold text-white text-sm">Top 5 Destinos</h3>
           </div>
-          {stats.ultimos.length === 0 ? <p className="text-center text-white/40 text-sm py-12">Sin actividad</p> : (
-            <div className="space-y-2">
-              {stats.ultimos.map(s => (
-                <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl border hover:bg-white/[0.02] transition-colors"
-                  style={{ borderColor: B.border }}>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-sm text-white truncate">{s.viaje_interno || '—'}</span>
-                      <StatusPill status={s.estado} size="sm" />
+          {stats.destinosTop.length === 0
+            ? <p className="text-center text-white/40 text-sm py-6">Sin datos</p>
+            : (
+              <div className="space-y-3">
+                {stats.destinosTop.map(([destino, count], idx) => {
+                  const max = stats.destinosTop[0][1];
+                  return (
+                    <div key={destino}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                            style={{ backgroundColor: '#7dd3fc20', color: '#7dd3fc' }}>
+                            {idx + 1}
+                          </span>
+                          <span className="text-white/80 font-medium truncate max-w-[55%]" title={destino}>{destino}</span>
+                        </div>
+                        <span className="font-bold text-white/70">{count}</span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden ml-7" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                        <div className="h-full rounded-full"
+                          style={{ width: `${(count / max) * 100}%`, background: 'linear-gradient(90deg, #7dd3fc, #38bdf8)' }} />
+                      </div>
                     </div>
-                    <p className="text-xs text-white/50 mt-1 truncate">
-                      {s.ciudad_origen || '?'} → {s.ciudad_destino || '?'} · {s.cliente}
-                    </p>
-                  </div>
-                  <div className="text-right flex-shrink-0">
-                    <p className="font-bold text-sm font-mono" style={{ color: B.orange }}>{fmtCOP(s.valor_total)}</p>
-                    <p className="text-[10px] text-white/40">{fmtDate(s.fecha_inicio_servicio)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+                  );
+                })}
+              </div>
+            )
+          }
+        </div>
+
+        {/* Tipo de movimiento */}
+        <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Route className="w-4 h-4" style={{ color: '#a78bfa' }} />
+            <h3 className="font-bold text-white text-sm">Tipo de Movimiento</h3>
+          </div>
+          {stats.tipoMovTop.length === 0
+            ? <p className="text-center text-white/40 text-sm py-6">Sin datos</p>
+            : (
+              <div className="space-y-3">
+                {stats.tipoMovTop.map(([tipo, count], idx) => {
+                  const total = stats.tipoMovTop.reduce((a, [, c]) => a + c, 0);
+                  const pct   = Math.round((count / total) * 100);
+                  const color = tipoMovColors[idx % tipoMovColors.length];
+                  return (
+                    <div key={tipo}>
+                      <div className="flex items-center justify-between text-xs mb-1">
+                        <span className="text-white/80 font-medium truncate max-w-[65%]" title={tipo}>{tipo}</span>
+                        <span className="font-bold" style={{ color }}>{count} <span className="text-white/40">({pct}%)</span></span>
+                      </div>
+                      <div className="h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.05)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: color }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          }
         </div>
       </div>
 
+      {/* ── Actividad reciente + Pendientes */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+
+        {/* Últimos servicios */}
+        <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Clock className="w-4 h-4" style={{ color: B.blue }} />
+            <h3 className="font-bold text-white text-sm">Actividad Reciente</h3>
+          </div>
+          {stats.ultimos.length === 0
+            ? <p className="text-center text-white/40 text-sm py-6">Sin actividad</p>
+            : (
+              <div className="space-y-2">
+                {stats.ultimos.map(s => (
+                  <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl border hover:bg-white/[0.02] transition-colors"
+                    style={{ borderColor: B.border }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-sm text-white">{s.viaje_interno || '—'}</span>
+                        <StatusPill status={s.estado} size="sm" />
+                      </div>
+                      <p className="text-xs text-white/50 mt-0.5 truncate">
+                        {s.ciudad_origen || '?'} → {s.ciudad_destino || '?'}
+                        {s.contrato ? ` · ${s.contrato}` : s.cliente ? ` · ${s.cliente}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="font-bold text-sm font-mono" style={{ color: B.orange }}>
+                        {fmtCOP(stats.toNum(s.valor_total))}
+                      </p>
+                      <p className="text-[10px] text-white/40">{fmtDate(s.fecha_inicio_servicio)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </div>
+
+        {/* Servicios pendientes (en curso más antiguos) */}
+        <div className="rounded-3xl border p-5" style={{ backgroundColor: B.card, borderColor: B.border }}>
+          <div className="flex items-center gap-2 mb-4">
+            <AlertCircle className="w-4 h-4" style={{ color: '#f59e0b' }} />
+            <h3 className="font-bold text-white text-sm">En Curso — Más Antiguos</h3>
+          </div>
+          {stats.pendientes.length === 0
+            ? (
+              <div className="text-center py-6">
+                <CheckCircle2 className="w-8 h-8 mx-auto mb-2" style={{ color: '#10b981' }} />
+                <p className="text-white/60 text-sm">Sin servicios en curso</p>
+              </div>
+            )
+            : (
+              <div className="space-y-2">
+                {stats.pendientes.map(s => (
+                  <div key={s.id} className="flex items-center justify-between gap-3 p-3 rounded-2xl border"
+                    style={{ borderColor: '#f59e0b30', backgroundColor: 'rgba(245,158,11,0.04)' }}>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm text-white">{s.viaje_interno || '—'}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded font-bold"
+                          style={{ color: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.15)' }}>
+                          EN CURSO
+                        </span>
+                      </div>
+                      <p className="text-xs text-white/50 mt-0.5 truncate">
+                        {s.ciudad_origen || '?'} → {s.ciudad_destino || '?'}
+                        {s.nombre_tecnico ? ` · ${s.nombre_tecnico}` : ''}
+                      </p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-[10px] text-white/50">Desde</p>
+                      <p className="text-xs font-bold text-white/80">{fmtDate(s.fecha_inicio_servicio || s.creado_en)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          }
+        </div>
+      </div>
+
+      {/* ── Nota regla de negocio */}
       <div className="rounded-2xl border p-4 flex items-start gap-3"
         style={{ backgroundColor: 'rgba(16,185,129,0.05)', borderColor: 'rgba(16,185,129,0.2)' }}>
         <Info className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
         <div className="text-xs text-white/70 leading-relaxed">
           <strong style={{ color: '#10b981' }}>Regla de cálculo: </strong>
-          el <em>Total Facturable</em> solo incluye <strong className="text-white">FACTURADO</strong>,
-          <strong className="text-white"> TERMINADO</strong> y <strong className="text-white">CUMPLIDO</strong>.
-          Los servicios <strong className="text-white">EN CURSO</strong> se muestran aparte y no suman al total.
+          el <em>Total Facturable</em> incluye solo servicios
+          <strong className="text-white"> FACTURADO</strong>,
+          <strong className="text-white"> TERMINADO</strong> y
+          <strong className="text-white"> CUMPLIDO</strong>.
+          Los servicios <strong className="text-white">EN CURSO</strong> se muestran aparte.
         </div>
       </div>
     </div>
@@ -1317,7 +1570,13 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
   const [showExport, setShowExport]       = useState(false);
 
   const ESTADOS_ALL  = ['EN CURSO', 'FACTURADO', 'TERMINADO', 'CUMPLIDO', 'CANCELADO'];
-  const CLIENTES_ALL = ['GRUPO UMA', 'AUTECO SAS', 'DONG FENG', 'OTROS'];
+  const CONTRATOS_ALL = [
+  'AUTECO SAS', 'AUTECO MOBILITY', 'CARGUESA',
+  'UMA VC SAS', 'UMA ZF SAS', 'UMA SAS',
+  'PARTICULAR', 'KAMEYO', 'VAISAND',
+  "AYURÁ MOTOR'S", 'DONG FENG', 'AKT',
+  'TRIUMPH', 'AUTOBONN', 'BLUE MOBILITY'
+];
 
   const filtrados = useMemo(() => {
     return servicios.filter(s => {
@@ -1327,7 +1586,7 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
       );
       return matchQ
         && (filterEstado  === 'TODOS' || s.estado  === filterEstado)
-        && (filterCliente === 'TODOS' || s.cliente === filterCliente);
+        && (filterCliente === 'TODOS' || s.contrato === filterCliente);
     });
   }, [servicios, query, filterEstado, filterCliente, visibleCols]);
 
@@ -1497,8 +1756,8 @@ function OperacionesView({ servicios, loading, onEdit, onDelete, onNewBulk, pued
             <select value={filterCliente} onChange={e => setFilterCliente(e.target.value)}
               className="flex-1 px-4 py-3 rounded-xl bg-black/30 border text-white text-sm cursor-pointer focus:outline-none"
               style={{ borderColor: B.borderH }}>
-              <option value="TODOS">Todos los clientes</option>
-              {CLIENTES_ALL.map(c => <option key={c} value={c}>{c}</option>)}
+              <option value="TODOS">Todos los contratos</option>
+              {CONTRATOS_ALL.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
           </div>
         </div>
